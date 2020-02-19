@@ -37,26 +37,46 @@ import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AltoAutoMapsUpdateListener implements DataTreeChangeListener<Topology>, AutoCloseable {
+public class AltoAutoMapsOpenflowUpdater implements DataTreeChangeListener<Topology>, AutoCloseable {
 
-    private static final Logger LOG = LoggerFactory.getLogger(AltoAutoMapsUpdateListener.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AltoAutoMapsOpenflowUpdater.class);
 
     private final DataBroker dataBroker;
     private final ListenerRegistration<?> registration;
 
-    private static final String TOPOLOGY_NAME = "flow:1";
+    private static final String DEFAULT_TOPOLOGY_NAME = "flow:1";
+    private static final String DEFAULT_CONTEXT = "00000000-0000-0000-0000-000000000000";
     private static final String DEFAULT_AUTO_NETWORKMAP = "default-auto-networkmap";
     // private static final String DEFAULT_AUTO_COSTMAP = "default-auto-costmap";
     // private static final String DEFAULT_PID = "PID0";
+    private String topologyName;
+    private String contextId;
+    private String networkmapResourceId;
 
-    public AltoAutoMapsUpdateListener(final DataBroker dataBroker) {
+    public AltoAutoMapsOpenflowUpdater(final DataBroker dataBroker) {
+        this.topologyName = DEFAULT_TOPOLOGY_NAME;
+        this.contextId = DEFAULT_CONTEXT;
+        this.networkmapResourceId = DEFAULT_AUTO_NETWORKMAP;
         this.dataBroker = dataBroker;
+        this.registration = registerTopologyListener();
+    }
+
+    public AltoAutoMapsOpenflowUpdater(String topologyName, String contextId, String networkmapResourceId,
+                                       final DataBroker dataBroker) {
+        this.topologyName = topologyName;
+        this.contextId = contextId;
+        this.networkmapResourceId = networkmapResourceId;
+        this.dataBroker = dataBroker;
+        this.registration = registerTopologyListener();
+    }
+
+    private ListenerRegistration<AltoAutoMapsOpenflowUpdater> registerTopologyListener() {
         InstanceIdentifier<Topology> iid = InstanceIdentifier
                 .builder(NetworkTopology.class)
                 .child(Topology.class,
-                        new TopologyKey(new TopologyId(TOPOLOGY_NAME)))
+                        new TopologyKey(new TopologyId(this.topologyName)))
                 .build();
-        this.registration = dataBroker.registerDataTreeChangeListener(new DataTreeIdentifier<>(
+        return dataBroker.registerDataTreeChangeListener(new DataTreeIdentifier<>(
                 LogicalDatastoreType.OPERATIONAL, iid), this);
     }
 
@@ -147,7 +167,7 @@ public class AltoAutoMapsUpdateListener implements DataTreeChangeListener<Topolo
                 .setEndpointAddressGroup(emptyEndpointAddressGroup);
         networkMap.add(builder.build());
 
-        ManualMapsUtils.createResourceNetworkMap(DEFAULT_AUTO_NETWORKMAP, networkMap, wx);
+        ManualMapsUtils.createResourceNetworkMap(this.contextId, this.networkmapResourceId, networkMap, wx);
     }
 
     private List<IpPrefix> aggregateAddressesList(List<Addresses> addressesList) {
@@ -169,6 +189,7 @@ public class AltoAutoMapsUpdateListener implements DataTreeChangeListener<Topolo
     public void close() throws Exception {
         closeRegistration();
         LOG.info("AltoAutoMapsUpdateListener Closed");
+        // TODO: Remove generated maps
     }
 
     private void closeRegistration() {

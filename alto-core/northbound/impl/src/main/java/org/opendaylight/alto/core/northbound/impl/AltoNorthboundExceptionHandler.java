@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.ExceptionMapper;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 
 public class AltoNorthboundExceptionHandler implements ExceptionMapper<Exception> {
 
@@ -22,8 +24,11 @@ public class AltoNorthboundExceptionHandler implements ExceptionMapper<Exception
 
     @Override
     public Response toResponse(Exception e) {
-        logger.info("begin exception handle: " + e.toString());
-        logger.info("exception type: " + e.getClass().toString());
+        ByteArrayOutputStream ebs = new ByteArrayOutputStream();
+        PrintStream eps = new PrintStream(ebs);
+        e.printStackTrace(eps);
+        String etb = ebs.toString();
+        logger.info("begin exception handle: " + e.toString() + "\nCaused by: " + etb);
         if (e instanceof AltoBasicException) {
             return ((AltoBasicException) e).getResponse();
         }

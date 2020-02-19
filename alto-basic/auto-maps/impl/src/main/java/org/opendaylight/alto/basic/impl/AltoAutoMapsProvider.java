@@ -15,10 +15,12 @@ public class AltoAutoMapsProvider {
 
     private static final Logger LOG = LoggerFactory.getLogger(AltoAutoMapsProvider.class);
 
-    private AltoAutoMapsUpdateListener listener;
+    // private AltoAutoMapsUpdateListener dummyListener;
+    private AltoAutoMapsConfigListener configListener = new AltoAutoMapsConfigListener();
 
     public AltoAutoMapsProvider(final DataBroker dataBroker) {
-        this.listener = new AltoAutoMapsUpdateListener(dataBroker);
+        // this.dummyListener = new AltoAutoMapsUpdateListener(dataBroker);
+        this.configListener.register(dataBroker);
     }
 
     /**
@@ -37,8 +39,11 @@ public class AltoAutoMapsProvider {
     }
 
     private void closeListener() throws Exception {
-        if (listener != null) {
-            this.listener.close();
+//        if (dummyListener != null) {
+//            this.dummyListener.close();
+//        }
+        if (configListener != null) {
+            this.configListener.close();
         }
     }
 }

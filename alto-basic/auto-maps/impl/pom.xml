@@ -25,6 +25,7 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
 
   <properties>
     <l2switch.version>0.7.4</l2switch.version>
+    <bgpcep.version>0.9.4</bgpcep.version>
   </properties>
 
   <dependencies>
@@ -67,6 +68,18 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
       <groupId>org.opendaylight.l2switch.addresstracker</groupId>
       <artifactId>addresstracker-model</artifactId>
       <version>${l2switch.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.opendaylight.bgpcep</groupId>
+      <artifactId>bgp-rib-api</artifactId>
+      <version>${bgpcep.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.opendaylight.bgpcep</groupId>
+      <artifactId>bgp-inet</artifactId>
+      <version>${bgpcep.version}</version>
     </dependency>
 
     <!-- Testing Dependencies -->

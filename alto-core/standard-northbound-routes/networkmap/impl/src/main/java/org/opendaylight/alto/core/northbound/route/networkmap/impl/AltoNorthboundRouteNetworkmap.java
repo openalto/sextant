@@ -92,9 +92,10 @@ public class AltoNorthboundRouteNetworkmap implements AltoNorthboundRoute {
 
     private DataBroker dataBroker = null;
 
-    private AltoNorthboundRouter m_router = null;
+    private AltoNorthboundRouter router = null;
 
-    private  static AltoModelNetworkmapService mapService = null;
+    private static AltoModelNetworkmapService mapService = null;
+
     public void setDataBroker(DataBroker dataBroker) {
         this.dataBroker = dataBroker;
     }
@@ -103,22 +104,26 @@ public class AltoNorthboundRouteNetworkmap implements AltoNorthboundRoute {
         this.mapService = mapService;
     }
 
+    public void setRouter(final AltoNorthboundRouter router) {
+        this.router = router;
+    }
+
     public void init() {
 
         if (dataBroker == null) {
             LOG.error("Failed to init: data broker is null");
         }
+        register();
 
         LOG.info("AltoNorthboundRouteNetworkmap initiated");
     }
 
-    public void register(AltoNorthboundRouter router) {
-        m_router = router;
-        m_router.addRoute("networkmap", new AltoNorthboundRouteNetworkmap());
+    public void register() {
+        router.addRoute(NETWORKMAP_ROUTE, this);
     }
 
     public void close() {
-        m_router.removeRoute("networkmap");
+        router.removeRoute(NETWORKMAP_ROUTE);
     }
 
     @Path("{path}")
@@ -137,6 +142,7 @@ public class AltoNorthboundRouteNetworkmap implements AltoNorthboundRoute {
         if(response != null)
             return response;
         else
+            LOG.info("Requested networkmap does't exist");
             return Response.status(404).build();
     }
 

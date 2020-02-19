@@ -13,10 +13,13 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
   <odl:rpc-service id='altoModelEndpointcostService'
     interface='org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.endpointcost.rev151021.AltoModelEndpointcostService' />
   <reference id="dataBroker" interface="org.opendaylight.controller.md.sal.binding.api.DataBroker"/>
+  <reference id="router"
+             interface="org.opendaylight.alto.core.northbound.api.AltoNorthboundRouter"/>
   <bean id="provider"
     class="org.opendaylight.alto.core.northbound.route.endpointcost.impl.AltoNorthboundRouteEndpointcost"
     init-method="init" destroy-method="close">
     <property name='mapService' ref='altoModelEndpointcostService' />
     <property name="dataBroker" ref="dataBroker" />
+    <property name="router" ref="router" />
   </bean>
 </blueprint>

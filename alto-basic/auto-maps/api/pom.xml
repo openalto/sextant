@@ -21,4 +21,19 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
   <version>0.6.4</version>
   <name>ODL :: alto :: ${project.artifactId}</name>
   <packaging>bundle</packaging>
+  <dependencies>
+    <dependency>
+      <groupId>org.opendaylight.alto.core</groupId>
+      <artifactId>alto-basic-types</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.mdsal.model</groupId>
+      <artifactId>ietf-yang-types-20130715</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.mdsal.model</groupId>
+      <artifactId>ietf-topology</artifactId>
+    </dependency>
+  </dependencies>
 </project>

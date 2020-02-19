@@ -8,6 +8,8 @@
 
 package org.opendaylight.alto.basic.manual.maps;
 
+import com.google.common.base.Optional;
+import org.opendaylight.controller.md.sal.binding.api.ReadTransaction;
 import org.opendaylight.controller.md.sal.binding.api.WriteTransaction;
 import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
 import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.yang.types.rev130715.Uuid;
@@ -32,6 +34,7 @@ import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 public class ManualMapsUtils {
 
@@ -51,6 +54,24 @@ public class ManualMapsUtils {
 
     public static InstanceIdentifier<ConfigContext> getContextIID(ConfigContextKey key) {
         return InstanceIdentifier.builder(ConfigContext.class, key).build();
+    }
+
+    public static boolean contextExists(String cid, ReadTransaction rx)
+            throws InterruptedException, ExecutionException {
+        return contextExists(new Uuid(cid), rx);
+    }
+
+    public static boolean contextExists(Uuid cid, ReadTransaction rx)
+            throws InterruptedException, ExecutionException {
+        return contextExists(new ConfigContextKey(cid), rx);
+    }
+
+    public static boolean contextExists(ConfigContextKey key, ReadTransaction rx)
+            throws InterruptedException, ExecutionException {
+        Optional<ConfigContext> context;
+        context = rx.read(LogicalDatastoreType.OPERATIONAL, getContextIID(key)).get();
+
+        return context.isPresent();
     }
 
     public static InstanceIdentifier<ConfigContext> getContextListIID() {
@@ -109,15 +130,30 @@ public class ManualMapsUtils {
         return cid;
     }
 
-    public static InstanceIdentifier<ResourceNetworkMap> createResourceNetworkMap(String rid,
+    public static InstanceIdentifier<ResourceNetworkMap> createResourceNetworkMap(
+            String rid,
             List<Map> networkMap,
             WriteTransaction wx) {
-        InstanceIdentifier<ResourceNetworkMap> iid = getResourceNetworkMapIID(rid);
+        return createResourceNetworkMap(DEFAULT_CONTEXT, rid, networkMap, wx);
+    }
+
+    public static InstanceIdentifier<ResourceNetworkMap> createResourceNetworkMap(
+            String cid,
+            String rid,
+            List<Map> networkMap,
+            WriteTransaction wx) {
+        return createResourceNetworkMap(new Uuid(cid), new ResourceId(rid), networkMap, wx);
+    }
+
+    public static InstanceIdentifier<ResourceNetworkMap> createResourceNetworkMap(Uuid cid, ResourceId rid,
+            List<Map> networkMap,
+            WriteTransaction wx) {
+        InstanceIdentifier<ResourceNetworkMap> iid = getResourceNetworkMapIID(cid, rid);
         ResourceNetworkMapBuilder builder = new ResourceNetworkMapBuilder()
-            .setTag(new Tag(UUID.nameUUIDFromBytes(rid.getBytes())
+            .setTag(new Tag(UUID.nameUUIDFromBytes(rid.getValue().getBytes())
                 .toString()
                 .replaceAll("-", "")))
-            .setResourceId(new ResourceId(rid))
+            .setResourceId(rid)
             .setMap(networkMap);
         wx.put(LogicalDatastoreType.CONFIGURATION, iid, builder.build());
         return iid;

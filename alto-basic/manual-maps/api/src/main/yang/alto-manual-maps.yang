@@ -21,6 +21,10 @@ module alto-manual-maps {
         prefix "endpointproperty-config";
     }
 
+    import "alto-basic-types" {
+        prefix "alto-types";
+    }
+
     import "alto-model-base" {
         prefix "base";
     }
@@ -60,13 +64,20 @@ module alto-manual-maps {
 //        }
     }
 
+    grouping config-map-meta {
+    }
+
     augment "alto-cfg:query/alto-cfg:input/alto-cfg:request/alto-cfg:config-request/"
           + "alto-cfg:config-request-message/alto-cfg:config-resource-data" {
         case "config-networkmap-data" {
-            uses networkmap-config:network-map;
+            container networkmap-data {
+                uses networkmap-config:network-map;
+            }
         }
         case "config-costmap-data" {
-            uses costmap-config:cost-map;
+            container costmap-data {
+                uses costmap-config:cost-map;
+            }
         }
     }
 
@@ -79,11 +90,15 @@ module alto-manual-maps {
 
     augment "alto-cfg:query/alto-cfg:output/alto-cfg:response/alto-cfg:config-response/"
           + "alto-cfg:config-response-message/alto-cfg:config-response-data" {
-        container "config-networkmap-response-data" {
-            uses networkmap-config:network-map;
+        case "config-networkmap-response-data" {
+            container "networkmap-response-data" {
+                uses networkmap-config:network-map;
+            }
         }
-        container "config-costmap-response-data" {
-            uses costmap-config:cost-map;
+        case "config-costmap-response-data" {
+            container "costmap-response-data" {
+                uses costmap-config:cost-map;
+            }
         }
     }
 }

@@ -103,9 +103,10 @@ public class AltoNorthboundRouteEndpointcost implements AltoNorthboundRoute {
 
     private DataBroker dataBroker = null;
 
-    private AltoNorthboundRouter m_router = null;
+    private AltoNorthboundRouter router = null;
 
-    private  static AltoModelEndpointcostService mapService = null;
+    private static AltoModelEndpointcostService mapService = null;
+
     public void setDataBroker(DataBroker dataBroker) {
         this.dataBroker = dataBroker;
     }
@@ -114,24 +115,27 @@ public class AltoNorthboundRouteEndpointcost implements AltoNorthboundRoute {
         this.mapService = mapService;
     }
 
+    public void setRouter(final AltoNorthboundRouter router) {
+        this.router = router;
+    }
+
     public void init() {
 
         if (dataBroker == null) {
             LOG.error("Failed to init: data broker is null");
         }
-
+        register();
 
         LOG.info("AltoNorthboundRouteEndpointcost initiated");
 
     }
 
-    public void register(AltoNorthboundRouter router) {
-        m_router = router;
-        m_router.addRoute("endpointcost", new AltoNorthboundRouteEndpointcost());
+    public void register() {
+        router.addRoute("endpointcost", this);
     }
 
     public void close() {
-        m_router.removeRoute("endpointcost");
+        router.removeRoute("endpointcost");
     }
 
     @Path("{path}")

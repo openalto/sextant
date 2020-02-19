@@ -60,7 +60,7 @@ module alto-model-config {
         container "config-response-message" {
             container "meta" {
             }
-            container "config-response-data" {
+            choice "config-response-data" {
             }
         }
     }

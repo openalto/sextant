@@ -3,7 +3,81 @@ module alto-auto-maps {
     namespace "urn:alto:auto:maps";
     prefix "alto-auto-maps";
 
+    import "ietf-yang-types" {
+        prefix "ietf-types";
+    }
+
+    import "network-topology" {
+        prefix "topology";
+    }
+
+    import "alto-basic-types" {
+        prefix "alto-types";
+    }
+
+    organization "Yale University";
+
+    contact "alto-dev@lists.opendaylight.org";
+
     revision "2015-01-05" {
         description "Initial revision of alto-auto-maps model";
+    }
+
+    typedef topology-type {
+        type enumeration {
+            enum openflow;
+            enum bgp-ipv4;
+            enum bgp-ls;
+        }
+    }
+
+    // TODO: Augment to config-context of manual map
+    list config-context {
+        key "context-id";
+
+        leaf "context-id" {
+            type ietf-types:uuid;
+            default "00000000-0000-0000-0000-000000000000";
+        }
+
+        list resource-network-map {
+            key "resource-id";
+
+            leaf "resource-id" {
+                mandatory true;
+                type alto-types:resource-id;
+            }
+
+            leaf "topology-id" {
+                type string;
+                default "flow:1";
+            }
+
+            leaf "topology-type" {
+                type topology-type;
+                default openflow;
+            }
+
+            choice algorithm {
+                case spt-cluster {
+                    container spt-cluster-params {
+                        leaf spt-root {
+                            type topology:node-id;
+                        }
+                        leaf num-of-clusters {
+                            type int32;
+                        }
+                    }
+                }
+                case bgp-simple-as-cluster {
+                    container bgp-simple-as-params {
+                        // FIXME: identityref is better
+                        leaf bgp-rib {
+                            type string;
+                        }
+                    }
+                }
+            }
+        }
     }
 }

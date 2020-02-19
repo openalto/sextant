@@ -100,20 +100,23 @@ public class AltoNorthboundRouteCostmap implements AltoNorthboundRoute {
         this.mapService = mapService;
     }
 
+    public void setRouter(final AltoNorthboundRouter router) {
+        this.router = router;
+    }
+
     public void init() {
 
         if (dataBroker == null) {
             LOG.error("Failed to init: data broker is null");
         }
-
+        register();
 
         LOG.info("AltoNorthboundRouteCostmap initiated");
 
     }
 
-    public void register(AltoNorthboundRouter router) {
-        this.router = router;
-        this.router.addRoute(COSTMAP_ROUTE, new AltoNorthboundRouteCostmap());
+    public void register() {
+        this.router.addRoute(COSTMAP_ROUTE, this);
     }
 
     public void close() {

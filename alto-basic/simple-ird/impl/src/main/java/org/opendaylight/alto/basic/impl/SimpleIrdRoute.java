@@ -72,9 +72,9 @@ public class SimpleIrdRoute implements AltoNorthboundRoute {
 
     protected static class Rfc7285Ird {
 
-        public Map<String, Object> meta = new HashMap<String, Object>();
+        public Map<String, Object> meta = new HashMap<>();
 
-        public Map<String, Object> resources = new HashMap<String, Object>();
+        public Map<String, Object> resources = new HashMap<>();
     }
 
     private Rfc7285Ird convert(IrdInstance ird, HttpServletRequest req) {

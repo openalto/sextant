@@ -15,7 +15,6 @@ import org.opendaylight.controller.md.sal.binding.api.ReadTransaction;
 import org.opendaylight.controller.md.sal.binding.api.ReadWriteTransaction;
 import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
 import org.opendaylight.controller.md.sal.common.api.data.ReadFailedException;
-import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.ConfigResponseData1Builder;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.Meta1Builder;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.config.context.ResourceCostMap;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.config.context.ResourceNetworkMap;
@@ -23,6 +22,8 @@ import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.query.input.r
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.query.input.request.config.request.config.request.message.config.resource.data.ConfigNetworkmapData;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.query.output.response.config.response.config.response.message.config.response.data.ConfigCostmapResponseDataBuilder;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.query.output.response.config.response.config.response.message.config.response.data.ConfigNetworkmapResponseDataBuilder;
+import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.query.output.response.config.response.config.response.message.config.response.data.config.costmap.response.data.CostmapResponseDataBuilder;
+import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.query.output.response.config.response.config.response.message.config.response.data.config.networkmap.response.data.NetworkmapResponseDataBuilder;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.config.rev151021.AltoModelConfigService;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.config.rev151021.QueryInput;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.config.rev151021.QueryOutput;
@@ -32,7 +33,6 @@ import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.config.r
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.config.rev151021.alto.response.config.response.ConfigResponseBuilder;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.config.rev151021.config.request.data.ConfigRequestMessage;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.config.rev151021.config.response.data.ConfigResponseMessageBuilder;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.config.rev151021.config.response.data.config.response.message.ConfigResponseData;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.config.rev151021.config.response.data.config.response.message.Meta;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.rev151021.alto.request.base.Request;
 import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
@@ -72,7 +72,7 @@ public class AltoModelConfigImpl implements AltoModelConfigService {
         outputBuilder.setType(ResourceTypeConfig.class);
         ConfigResponseBuilder crBuilder = new ConfigResponseBuilder();
         ConfigResponseMessageBuilder crmBuilder = new ConfigResponseMessageBuilder();
-        ConfigResponseData1Builder crdBuilder = new ConfigResponseData1Builder();
+        ConfigNetworkmapResponseDataBuilder cnrdBuilder = new ConfigNetworkmapResponseDataBuilder();
 
         ResourceNetworkMap result = null;
         String errorCode = RESPONSE_ERROR_CODE_FAILED;
@@ -81,7 +81,7 @@ public class AltoModelConfigImpl implements AltoModelConfigService {
             optional = future.checkedGet();
             if (optional.isPresent()) {
                 result = optional.get();
-                crdBuilder.setConfigNetworkmapResponseData(new ConfigNetworkmapResponseDataBuilder()
+                cnrdBuilder.setNetworkmapResponseData(new NetworkmapResponseDataBuilder()
                         .setResourceId(result.getResourceId())
                         .setTag(result.getTag())
                         .setMap(result.getMap())
@@ -93,7 +93,7 @@ public class AltoModelConfigImpl implements AltoModelConfigService {
         }
         crmBuilder
                 .setMeta((Meta) new Meta1Builder().setConfigResponseErrorCode(errorCode).build())
-                .setConfigResponseData((ConfigResponseData) crdBuilder.build());
+                .setConfigResponseData(cnrdBuilder.build());
         crBuilder.setConfigResponseMessage(crmBuilder.build());
         outputBuilder.setResponse(crBuilder.build());
         return outputBuilder.build();
@@ -109,7 +109,7 @@ public class AltoModelConfigImpl implements AltoModelConfigService {
         outputBuilder.setType(ResourceTypeConfig.class);
         ConfigResponseBuilder crBuilder = new ConfigResponseBuilder();
         ConfigResponseMessageBuilder crmBuilder = new ConfigResponseMessageBuilder();
-        ConfigResponseData1Builder crdBuilder = new ConfigResponseData1Builder();
+        ConfigCostmapResponseDataBuilder ccrdBuilder = new ConfigCostmapResponseDataBuilder();
 
         ResourceCostMap result = null;
         String errorCode = RESPONSE_ERROR_CODE_FAILED;
@@ -118,7 +118,7 @@ public class AltoModelConfigImpl implements AltoModelConfigService {
             optional = future.checkedGet();
             if (optional.isPresent()) {
                 result = optional.get();
-                crdBuilder.setConfigCostmapResponseData(new ConfigCostmapResponseDataBuilder()
+                ccrdBuilder.setCostmapResponseData(new CostmapResponseDataBuilder()
                         .setResourceId(result.getResourceId())
                         .setTag(result.getTag())
                         .setMeta(result.getMeta())
@@ -131,7 +131,7 @@ public class AltoModelConfigImpl implements AltoModelConfigService {
         }
         crmBuilder
                 .setMeta((Meta) new Meta1Builder().setConfigResponseErrorCode(errorCode).build())
-                .setConfigResponseData((ConfigResponseData) crdBuilder.build());
+                .setConfigResponseData(ccrdBuilder.build());
         crBuilder.setConfigResponseMessage(crmBuilder.build());
         outputBuilder.setResponse(crBuilder.build());
         return outputBuilder.build();
@@ -174,10 +174,11 @@ public class AltoModelConfigImpl implements AltoModelConfigService {
         } else if (requestMessage.getConfigType() == ConfigRequestMessage.ConfigType.Create) {
             if (requestMessage.getConfigResourceType() == "networkmap") {
                 ConfigNetworkmapData networkmapData = (ConfigNetworkmapData) requestMessage.getConfigResourceData();
-                ManualMapsUtils.createResourceNetworkMap(resourceId, networkmapData.getMap(), rwx);
+                ManualMapsUtils.createResourceNetworkMap(resourceId, networkmapData.getNetworkmapData().getMap(), rwx);
             } else if (requestMessage.getConfigResourceType() == "costmap") {
                 ConfigCostmapData costmapData = (ConfigCostmapData) requestMessage.getConfigResourceData();
-                ManualMapsUtils.createResourceCostMap(resourceId, costmapData.getMeta(), costmapData.getMap(), rwx);
+                ManualMapsUtils.createResourceCostMap(resourceId, costmapData.getCostmapData().getMeta(),
+                        costmapData.getCostmapData().getMap(), rwx);
             }
         }
         rwx.submit();

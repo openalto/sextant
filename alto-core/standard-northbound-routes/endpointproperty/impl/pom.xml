@@ -108,25 +108,4 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
     </dependency>
   </dependencies>
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.felix</groupId>
-        <artifactId>maven-bundle-plugin</artifactId>
-        <version>${bundle.plugin.version}</version>
-        <extensions>true</extensions>
-        <configuration>
-          <instructions>
-            <Import-Package>
-              *,
-              com.sun.jersey.spi.container.servlet,
-              org.eclipse.jetty.servlets;version="[8.1,10)"
-            </Import-Package>
-            <Web-ContextPath>/alto</Web-ContextPath>
-          </instructions>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
-
 </project>

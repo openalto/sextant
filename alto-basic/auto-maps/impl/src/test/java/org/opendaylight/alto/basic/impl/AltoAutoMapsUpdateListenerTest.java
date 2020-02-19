@@ -45,7 +45,7 @@ public class AltoAutoMapsUpdateListenerTest {
 
     private final DataBroker dataBroker = mock(DataBroker.class);
     private final ListenerRegistration<?> registration = mock(ListenerRegistration.class);
-    private AltoAutoMapsUpdateListener altoAutoMapsUpdateListener;
+    private AltoAutoMapsOpenflowUpdater altoAutoMapsUpdateListener;
     private final WriteTransaction rwx = mock(WriteTransaction.class);
     private final InstanceIdentifier<Topology> iid = InstanceIdentifier
             .builder(NetworkTopology.class)
@@ -58,12 +58,12 @@ public class AltoAutoMapsUpdateListenerTest {
     public void setUp() throws Exception {
         when(dataBroker.registerDataTreeChangeListener(
                 any(DataTreeIdentifier.class),
-                any(AltoAutoMapsUpdateListener.class)
+                any(AltoAutoMapsOpenflowUpdater.class)
         )).thenReturn(registration);
 
         when(dataBroker.newWriteOnlyTransaction()).thenReturn(rwx);
 
-        altoAutoMapsUpdateListener = new AltoAutoMapsUpdateListener(dataBroker);
+        altoAutoMapsUpdateListener = new AltoAutoMapsOpenflowUpdater(dataBroker);
     }
 
     @After
