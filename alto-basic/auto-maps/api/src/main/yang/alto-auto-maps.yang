@@ -11,6 +11,10 @@ module alto-auto-maps {
         prefix "topology";
     }
 
+    import "bgp-rib" {
+        prefix "rib";
+    }
+
     import "alto-basic-types" {
         prefix "alto-types";
     }
@@ -71,10 +75,31 @@ module alto-auto-maps {
                 }
                 case bgp-simple-as-cluster {
                     container bgp-simple-as-params {
-                        // FIXME: identityref is better
                         leaf bgp-rib {
-                            type string;
+                            type rib:rib-id;
                         }
+                    }
+                }
+            }
+        }
+
+        list resource-cost-map {
+            key "resource-id";
+
+            leaf "resource-id" {
+                mandatory true;
+                type alto-types:resource-id;
+            }
+
+            leaf "dependent-network-map" {
+                mandatory true;
+                type alto-types:resource-id;
+            }
+
+            choice cost-algorithm {
+                case bgp-routes {
+                    leaf-list alternative-bgp-ribs {
+                        type rib:rib-id;
                     }
                 }
             }

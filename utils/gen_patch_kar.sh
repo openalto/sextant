@@ -10,12 +10,13 @@
 cd $(dirname $0)/..
 PROJECT_ROOT=$(pwd)
 KAR_ROOT=$PROJECT_ROOT/alto-karaf/target/assembly
-ALTO_KAR_ROOT=$KAR_ROOT/system/org/opendaylight/alto
+ALTO_KAR_ROOT=$KAR_ROOT/system/org/opendaylight/alto/
 
 generate_patch() {
     TMP_DIR=$(mktemp -d)
     TMP_PATCH_ROOT=$TMP_DIR/odl-alto-patch
-    cp -r $ALTO_KAR_ROOT $TMP_PATCH_ROOT/
+    mkdir -p $TMP_PATCH_ROOT/alto
+    cp -r $ALTO_KAR_ROOT $TMP_PATCH_ROOT/alto/
     cp $PROJECT_ROOT/utils/install_patch.sh $TMP_PATCH_ROOT/
     pushd $TMP_DIR
     zip -r odl-alto-patch odl-alto-patch

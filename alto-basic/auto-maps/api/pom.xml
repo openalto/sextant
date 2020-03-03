@@ -21,6 +21,9 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
   <version>0.6.4</version>
   <name>ODL :: alto :: ${project.artifactId}</name>
   <packaging>bundle</packaging>
+  <properties>
+    <bgpcep.version>0.9.4</bgpcep.version>
+  </properties>
   <dependencies>
     <dependency>
       <groupId>org.opendaylight.alto.core</groupId>
@@ -34,6 +37,11 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
     <dependency>
       <groupId>org.opendaylight.mdsal.model</groupId>
       <artifactId>ietf-topology</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.bgpcep</groupId>
+      <artifactId>bgp-rib-api</artifactId>
+      <version>${bgpcep.version}</version>
     </dependency>
   </dependencies>
 </project>

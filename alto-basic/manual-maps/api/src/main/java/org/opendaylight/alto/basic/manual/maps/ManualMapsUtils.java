@@ -100,10 +100,8 @@ public class ManualMapsUtils {
     }
 
     public static InstanceIdentifier<ResourceCostMap> getResourceCostMapIID(Uuid cid, ResourceId rid) {
-        ConfigContextKey ckey = new ConfigContextKey(cid);
-        ResourceCostMapKey rkey = new ResourceCostMapKey(rid);
         return getResourceIID(new ConfigContextKey(cid), new ResourceCostMapKey(rid),
-            ResourceCostMap.class);
+                ResourceCostMap.class);
     }
 
     public static <T extends Identifiable<K> & ChildOf<? super ConfigContext>, K extends Identifier<T>>
@@ -150,7 +148,7 @@ public class ManualMapsUtils {
             WriteTransaction wx) {
         InstanceIdentifier<ResourceNetworkMap> iid = getResourceNetworkMapIID(cid, rid);
         ResourceNetworkMapBuilder builder = new ResourceNetworkMapBuilder()
-            .setTag(new Tag(UUID.nameUUIDFromBytes(rid.getValue().getBytes())
+            .setTag(new Tag(UUID.randomUUID()
                 .toString()
                 .replaceAll("-", "")))
             .setResourceId(rid)
@@ -165,7 +163,7 @@ public class ManualMapsUtils {
             WriteTransaction wx) {
         InstanceIdentifier<ResourceCostMap> iid = getResourceCostMapIID(rid);
         ResourceCostMapBuilder builder = new ResourceCostMapBuilder()
-            .setTag(new Tag(UUID.nameUUIDFromBytes(rid.getBytes())
+            .setTag(new Tag(UUID.randomUUID()
                 .toString()
                 .replaceAll("-", "")))
             .setResourceId(new ResourceId(rid))
@@ -189,7 +187,7 @@ public class ManualMapsUtils {
     }
 
     public static void deleteResourceNetworkMap(String cid, String rid, final WriteTransaction wx) {
-        deleteResourceNetworkMap(new Uuid(cid), new ResourceId(cid), wx);
+        deleteResourceNetworkMap(new Uuid(cid), new ResourceId(rid), wx);
     }
 
     public static void deleteResourceNetworkMap(Uuid cid, ResourceId rid,
@@ -202,7 +200,7 @@ public class ManualMapsUtils {
     }
 
     public static void deleteResourceCostMap(String cid, String rid, final WriteTransaction wx) {
-        deleteResourceCostMap(new Uuid(cid), new ResourceId(cid), wx);
+        deleteResourceCostMap(new Uuid(cid), new ResourceId(rid), wx);
     }
 
     public static void deleteResourceCostMap(Uuid cid, ResourceId rid, final WriteTransaction wx) {

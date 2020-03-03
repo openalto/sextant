@@ -129,8 +129,9 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
                         dataBroker));
                 break;
             case BgpLs:
-                // TODO: BGP-LS updater
-                LOG.warn("BGP-LS updater not implemented yet");
+                LOG.info("creating updater for BGP-LS topology");
+                contextUpdaters.put(resourceId, new AltoAutoMapsBgpLsUpdater(contextId, networkMapConfig,
+                        dataBroker));
                 break;
             default:
                 LOG.warn("Unsupported topology type");
