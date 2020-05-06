@@ -355,6 +355,12 @@ public class AltoNorthboundRouteNetworkmap implements AltoNorthboundRoute {
             }
             addressGroup.ipv4 = ipv4ListString;
 
+            if (addressGroup.ipv4.isEmpty()) {
+                addressGroup.ipv4 = null;
+            }
+            if (addressGroup.ipv6.isEmpty()) {
+                addressGroup.ipv6 = null;
+            }
             rfcNetowrkMap.put(pidName, addressGroup);
         }
 

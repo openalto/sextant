@@ -16,7 +16,12 @@ import org.opendaylight.controller.md.sal.binding.api.ReadWriteTransaction;
 import org.opendaylight.controller.md.sal.binding.api.WriteTransaction;
 import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.ConfigContext;
-import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.ResourceNetworkMap;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.NetworkMapConfig;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.Algorithm;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.Params;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.algorithm.FirstHopCluster;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.Bgp;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.Openflow;
 import org.opendaylight.yangtools.concepts.ListenerRegistration;
 import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
 import org.slf4j.Logger;
@@ -48,7 +53,7 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
                 LogicalDatastoreType.CONFIGURATION, configListIID),
                 changes -> onConfigContextChanged(changes)));
         listenerRegs.add(dataBroker.registerDataTreeChangeListener(new DataTreeIdentifier<>(
-                LogicalDatastoreType.CONFIGURATION, configListIID.child(ResourceNetworkMap.class)),
+                LogicalDatastoreType.CONFIGURATION, configListIID.child(NetworkMapConfig.class)),
                 changes -> onNetworkMapConfigured(changes)));
     }
 
@@ -83,12 +88,12 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
         }
     }
 
-    private void onNetworkMapConfigured(Collection<DataTreeModification<ResourceNetworkMap>> changes) {
+    private void onNetworkMapConfigured(Collection<DataTreeModification<NetworkMapConfig>> changes) {
         final ReadWriteTransaction rwx = dataBroker.newReadWriteTransaction();
 
-        for (DataTreeModification<ResourceNetworkMap> change : changes) {
-            final DataObjectModification<ResourceNetworkMap> rootNode = change.getRootNode();
-            final InstanceIdentifier<ResourceNetworkMap> identifier = change.getRootPath().getRootIdentifier();
+        for (DataTreeModification<NetworkMapConfig> change : changes) {
+            final DataObjectModification<NetworkMapConfig> rootNode = change.getRootNode();
+            final InstanceIdentifier<NetworkMapConfig> identifier = change.getRootPath().getRootIdentifier();
             final String contextId = identifier.firstKeyOf(ConfigContext.class).getContextId().getValue();
             switch (rootNode.getModificationType()) {
                 case WRITE:
@@ -107,7 +112,7 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
         rwx.submit();
     }
 
-    private void generateNetworkMapUpdater(String contextId, String resourceId, ResourceNetworkMap networkMapConfig) {
+    private void generateNetworkMapUpdater(String contextId, String resourceId, NetworkMapConfig networkMapConfig) {
         if (!updaters.containsKey(contextId)) {
             updaters.put(contextId, new LinkedHashMap<>());
         }
@@ -117,24 +122,33 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
             LOG.warn("Updating configuration not supported yet");
             return;
         }
-        switch (networkMapConfig.getTopologyType()) {
-            case Openflow:
-                LOG.info("creating updater for OpenFlow topology...");
-                contextUpdaters.put(resourceId, new AltoAutoMapsOpenflowUpdater(networkMapConfig.getTopologyId(),
-                        contextId, resourceId, dataBroker));
-                break;
-            case BgpIpv4:
-                LOG.info("creating updater for BGP IPv4 topology...");
-                contextUpdaters.put(resourceId, new AltoAutoMapsBgpIpv4Updater(contextId, networkMapConfig,
+        Params params = networkMapConfig.getParams();
+        Algorithm algorithm = networkMapConfig.getAlgorithm();
+        if (params == null) {
+            LOG.warn("Must set parameters");
+        } else if (params instanceof Openflow) {
+            LOG.info("creating updater for OpenFlow topology...");
+            if (algorithm == null) {
+                contextUpdaters.put(resourceId, new AltoAutoMapsOpenflowUpdater(contextId, networkMapConfig,
                         dataBroker));
-                break;
-            case BgpLs:
-                LOG.info("creating updater for BGP-LS topology");
-                contextUpdaters.put(resourceId, new AltoAutoMapsBgpLsUpdater(contextId, networkMapConfig,
-                        dataBroker));
-                break;
-            default:
-                LOG.warn("Unsupported topology type");
+            } else {
+            }
+        } else if (params instanceof Bgp) {
+            if (algorithm == null) {
+                LOG.warn("Must set algorithm");
+            } else if (algorithm instanceof FirstHopCluster) {
+                if (((FirstHopCluster) algorithm).getFirstHopClusterAlgorithm().isInspectIgp()) {
+                    LOG.info("creating updater for BGP-LS topology");
+                    contextUpdaters.put(resourceId, new AltoAutoMapsBgpLsUpdater(contextId, networkMapConfig,
+                            dataBroker));
+                } else {
+                    LOG.info("creating updater for BGP IPv4 topology...");
+                    contextUpdaters.put(resourceId, new AltoAutoMapsBgpIpv4Updater(contextId, networkMapConfig,
+                            dataBroker));
+                }
+            } else {
+                LOG.warn("Algorithm not supported by OpenFlow network");
+            }
         }
     }
 

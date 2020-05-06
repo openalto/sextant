@@ -8,6 +8,7 @@
 
 package org.opendaylight.alto.core.northbound.api.utils.rfc7285;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -28,9 +29,11 @@ public class RFC7285Endpoint {
         public static final String IPV6_LABEL = "ipv6";
 
         @JsonProperty(IPV4_LABEL)
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         public List<String> ipv4 = new ArrayList<String>();
 
         @JsonProperty(IPV6_LABEL)
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         public List<String> ipv6 = new ArrayList<String>();
 
     }

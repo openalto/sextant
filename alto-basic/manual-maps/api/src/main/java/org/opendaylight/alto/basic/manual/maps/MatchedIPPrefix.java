@@ -45,7 +45,7 @@ public class MatchedIPPrefix {
         if (!baseAddress.getClass().equals(specificPrefix.baseAddress.getClass())) {
             return false;
         }
-        if (specificPrefix.prefixLen > prefixLen) {
+        if (prefixLen > specificPrefix.prefixLen) {
             return false;
         }
         byte[] baseAddr = baseAddress.getAddress();

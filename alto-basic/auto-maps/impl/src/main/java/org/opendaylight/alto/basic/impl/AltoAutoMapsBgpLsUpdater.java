@@ -12,12 +12,16 @@ import org.opendaylight.alto.basic.manual.maps.ManualMapsUtils;
 import org.opendaylight.alto.basic.manual.maps.MatchedIPPrefix;
 import org.opendaylight.controller.md.sal.binding.api.DataBroker;
 import org.opendaylight.controller.md.sal.binding.api.DataTreeChangeListener;
+import org.opendaylight.controller.md.sal.binding.api.DataTreeIdentifier;
 import org.opendaylight.controller.md.sal.binding.api.DataTreeModification;
 import org.opendaylight.controller.md.sal.binding.api.ReadTransaction;
 import org.opendaylight.controller.md.sal.binding.api.ReadWriteTransaction;
 import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
-import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.ResourceNetworkMap;
-import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.resource.network.map.algorithm.BgpSimpleAsCluster;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.NetworkMapConfig;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.algorithm.FirstHopCluster;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.algorithm.first.hop.cluster.FirstHopClusterAlgorithm;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.Bgp;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.bgp.BgpParams;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.EndpointAddressType;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.endpoint.address.group.EndpointAddressGroup;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.endpoint.address.group.EndpointAddressGroupBuilder;
@@ -70,20 +74,34 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
     private final DataBroker dataBroker;
     private ListenerRegistration<?> registration;
     private String contextId;
-    private ResourceNetworkMap networkMapConfig;
+    private NetworkMapConfig networkMapConfig;
+    private boolean inspectInternalLink;
     private InstanceIdentifier<Tables> tableIID;
 
-    public AltoAutoMapsBgpLsUpdater(String contextId, ResourceNetworkMap networkMapConfig, final DataBroker dataBroker) {
+    public AltoAutoMapsBgpLsUpdater(String contextId, NetworkMapConfig networkMapConfig, final DataBroker dataBroker) {
         this.dataBroker = dataBroker;
         this.contextId = contextId;
         this.networkMapConfig = networkMapConfig;
         this.tableIID = getConfiguredLinkStateTable(networkMapConfig);
+        inspectInternalLink = ((FirstHopCluster) networkMapConfig.getAlgorithm()).getFirstHopClusterAlgorithm()
+                .isInspectInternalLink();
+        registerBGPListener();
     }
 
-    private InstanceIdentifier<Tables> getConfiguredLinkStateTable(ResourceNetworkMap networkMapConfig) {
-        if (networkMapConfig.getAlgorithm() instanceof BgpSimpleAsCluster) {
-            BgpSimpleAsCluster algorithm = (BgpSimpleAsCluster) networkMapConfig.getAlgorithm();
-            RibId ribId = algorithm.getBgpSimpleAsParams().getBgpRib();
+    private void registerBGPListener() {
+        if (tableIID != null) {
+            registration = dataBroker.registerDataTreeChangeListener(new DataTreeIdentifier<>(
+                    LogicalDatastoreType.OPERATIONAL, tableIID), this);
+            LOG.info("Listening on BGP Link State Routing Table:", tableIID);
+        } else {
+            LOG.info("No routing table to listen");
+        }
+    }
+
+    private InstanceIdentifier<Tables> getConfiguredLinkStateTable(NetworkMapConfig networkMapConfig) {
+        if (networkMapConfig.getParams() instanceof Bgp) {
+            BgpParams params = ((Bgp) networkMapConfig.getParams()).getBgpParams();
+            RibId ribId = params.getBgpRib().get(0).getRibId();
             return InstanceIdentifier.builder(BgpRib.class)
                     .child(Rib.class, new RibKey(ribId))
                     .child(LocRib.class)
@@ -103,14 +121,14 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
 
     private void updateNetworkMap() {
         final ReadWriteTransaction wrx = dataBroker.newReadWriteTransaction();
-        List<Map> networkMap = computeNetworkMapByBgpLs(networkMapConfig);
+        List<Map> networkMap = computeNetworkMapByBgpLs();
         LOG.info("Putting auto generated network-map to manual map config...");
         ManualMapsUtils.createResourceNetworkMap(contextId, networkMapConfig.getResourceId().getValue(),
                 networkMap, wrx);
         wrx.submit();
     }
 
-    private List<Map> computeNetworkMapByBgpLs(ResourceNetworkMap networkMapConfig) {
+    private List<Map> computeNetworkMapByBgpLs() {
         final ReadTransaction rx = dataBroker.newReadOnlyTransaction();
         List<Map> networkMap = new LinkedList<>();
         try {
@@ -122,6 +140,9 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
                     for (java.util.Map.Entry<String, List<IpPrefix>> entry : pids.entrySet()) {
                         String pidName = entry.getKey();
                         List<IpPrefix> prefixList = entry.getValue();
+                        if ((prefixList == null) || prefixList.isEmpty()) {
+                            continue;
+                        }
                         networkMap.add(new MapBuilder()
                                 .setPid(new PidName(pidName))
                                 .setEndpointAddressGroup(Arrays.asList(new EndpointAddressGroup[]{
@@ -160,18 +181,25 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
                         if (!pids.containsKey(pidName)) {
                             pids.put(pidName, new LinkedList<>());
                         }
-                        boolean include = true;
+                        boolean included = false;
                         for (IpPrefix p : pids.get(pidName)) {
                             if (matchPrefix(p, prefix)) {
-                                include = false;
+                                included = true;
                                 break;
                             }
                         }
-                        if (include) {
+                        if (!included) {
                             pids.get(pidName).add(prefix);
                         }
                     }
-                } else if (route.getObjectType() instanceof LinkCase) {
+                }
+            } else {
+                LOG.debug("Protocol not supported yet");
+            }
+        }
+        for (LinkstateRoute route : routesCase.getLinkstateRoutes().getLinkstateRoute()) {
+            if (route.getProtocolId() == ProtocolId.Ospf) {
+                if (route.getObjectType() instanceof LinkCase) {
                     LinkCase linkCase = (LinkCase) route.getObjectType();
                     Ipv4Address src = linkCase.getLinkDescriptors().getIpv4InterfaceAddress();
                     Ipv4Address dst = linkCase.getLinkDescriptors().getIpv4NeighborAddress();
@@ -188,12 +216,19 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
                         IpPrefix srcPrefix = new IpPrefix(new Ipv4Prefix(src.getValue() + "/32"));
                         List<IpPrefix> removes = new LinkedList<>();
                         for (IpPrefix p : pids.get(srcPidName)) {
+                            if (p.equals(srcPrefix)) {
+                                continue;
+                            }
                             if (matchPrefix(srcPrefix, p)) {
                                 removes.add(p);
                             }
                         }
+                        LOG.debug("Removing internal subnet " + removes.toString() + " for " + srcPrefix.toString());
                         pids.get(srcPidName).removeAll(removes);
-                        pids.get(srcPidName).add(srcPrefix);
+                        LOG.debug("After removed: " + pids.get(srcPidName).toString());
+                        if (inspectInternalLink) {
+                            pids.get(srcPidName).add(srcPrefix);
+                        }
                     }
                     if (dstPidName != null && dst != null) {
                         if (!pids.containsKey(dstPidName)) {
@@ -202,12 +237,19 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
                         IpPrefix dstPrefix = new IpPrefix((new Ipv4Prefix(dst.getValue() + "/32")));
                         List<IpPrefix> removes = new LinkedList<>();
                         for (IpPrefix p : pids.get(dstPidName)) {
+                            if (p.equals(dstPrefix)) {
+                                continue;
+                            }
                             if (matchPrefix(dstPrefix, p)) {
                                 removes.add(p);
                             }
                         }
+                        LOG.debug("Removing internal subnet " + removes.toString() + " for " + dstPrefix.toString());
                         pids.get(dstPidName).removeAll(removes);
-                        pids.get(dstPidName).add(dstPrefix);
+                        LOG.debug("After removed: " + pids.get(dstPidName).toString());
+                        if (inspectInternalLink) {
+                            pids.get(dstPidName).add(dstPrefix);
+                        }
                     }
                 }
             } else {
@@ -228,13 +270,14 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
 
     private String generatePidFromNodeDesc(AsNumber asNumber, DomainIdentifier domainId, AreaIdentifier areaId,
                                            CRouterIdentifier cRouterId) {
+        final String separator = ":";
         String pidName = "PID";
         pidName += (asNumber == null) ? "0" : asNumber.getValue().toString();
-        pidName += "." + ((domainId == null) ? "0" : domainId.getValue().toString());
-        pidName += "." + ((areaId == null) ? "0" : areaId.getValue().toString());
+        pidName += separator + ((domainId == null) ? "0" : domainId.getValue().toString());
+        pidName += separator + ((areaId == null) ? "0" : areaId.getValue().toString());
         if (cRouterId instanceof OspfNodeCase) {
             OspfNode ospfNode = ((OspfNodeCase) cRouterId).getOspfNode();
-            pidName += "." + Integer.toHexString(ospfNode.getOspfRouterId().intValue());
+            pidName += separator + Integer.toHexString(ospfNode.getOspfRouterId().intValue());
         } else {
             LOG.debug("Node not support yet");
             return null;

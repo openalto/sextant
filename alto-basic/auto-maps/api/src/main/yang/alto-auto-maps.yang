@@ -44,7 +44,7 @@ module alto-auto-maps {
             default "00000000-0000-0000-0000-000000000000";
         }
 
-        list resource-network-map {
+        list network-map-config {
             key "resource-id";
 
             leaf "resource-id" {
@@ -52,38 +52,62 @@ module alto-auto-maps {
                 type alto-types:resource-id;
             }
 
-            leaf "topology-id" {
-                type string;
-                default "flow:1";
-            }
-
-            leaf "topology-type" {
-                type topology-type;
-                default openflow;
+            choice params {
+                case openflow {
+                    container openflow-params {
+                        leaf topology-id {
+                            mandatory true;
+                            type topology:topology-id;
+                        }
+                    }
+                }
+                case bgp {
+                    container bgp-params {
+                        list bgp-rib {
+                            key rib-id;
+                            leaf rib-id {
+                                mandatory true;
+                                type rib:rib-id;
+                            }
+                            leaf topology-id {
+                                type topology:topology-id;
+                            }
+                            leaf bgp-ls {
+                                type boolean;
+                            }
+                        }
+                    }
+                }
             }
 
             choice algorithm {
-                case spt-cluster {
-                    container spt-cluster-params {
+                case shortest-path-tree-cluster {
+                    container spt-cluster-algorithm {
                         leaf spt-root {
+                            mandatory true;
                             type topology:node-id;
                         }
-                        leaf num-of-clusters {
+                        leaf radix {
                             type int32;
                         }
                     }
                 }
-                case bgp-simple-as-cluster {
-                    container bgp-simple-as-params {
-                        leaf bgp-rib {
-                            type rib:rib-id;
+                case first-hop-cluster {
+                    container first-hop-cluster-algorithm {
+                        leaf inspect-igp {
+                            type boolean;
+                            default false;
+                        }
+                        leaf inspect-internal-link {
+                            type boolean;
+                            default true;
                         }
                     }
                 }
             }
         }
 
-        list resource-cost-map {
+        list cost-map-config {
             key "resource-id";
 
             leaf "resource-id" {
@@ -96,11 +120,32 @@ module alto-auto-maps {
                 type alto-types:resource-id;
             }
 
-            choice cost-algorithm {
-                case bgp-routes {
-                    leaf-list alternative-bgp-ribs {
-                        type rib:rib-id;
+            choice general-params {
+                case bgp {
+                    container bgp-params {
+                        list alternative-bgp-rib {
+                            key rib-id;
+                            leaf rib-id {
+                                mandatory true;
+                                type rib:rib-id;
+                            }
+                            leaf topology-id {
+                                type topology:topology-id;
+                            }
+                            leaf bgp-ls {
+                                type boolean;
+                            }
+                        }
                     }
+                }
+            }
+
+            list cost-type {
+                uses alto-types:cost-type-data;
+                key "cost-mode cost-metric";
+
+                choice params {
+                    // to be augmented
                 }
             }
         }

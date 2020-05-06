@@ -19,12 +19,16 @@ import org.opendaylight.controller.md.sal.binding.api.DataTreeIdentifier;
 import org.opendaylight.controller.md.sal.binding.api.DataTreeModification;
 import org.opendaylight.controller.md.sal.binding.api.WriteTransaction;
 import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.NetworkMapConfig;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.Openflow;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.EndpointAddressType;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.endpoint.address.group.EndpointAddressGroup;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.endpoint.address.group.EndpointAddressGroupBuilder;
 import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.PidName;
+import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.ResourceId;
 import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev130715.IpPrefix;
 import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev130715.Ipv4Prefix;
+import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.yang.types.rev130715.Uuid;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.address.tracker.rev140617.address.node.connector.Addresses;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.host.tracker.rev140624.HostNode;
 import org.opendaylight.yang.gen.v1.urn.tbd.params.xml.ns.yang.network.topology.rev131021.NetworkTopology;
@@ -49,23 +53,25 @@ public class AltoAutoMapsOpenflowUpdater implements DataTreeChangeListener<Topol
     private static final String DEFAULT_AUTO_NETWORKMAP = "default-auto-networkmap";
     // private static final String DEFAULT_AUTO_COSTMAP = "default-auto-costmap";
     // private static final String DEFAULT_PID = "PID0";
-    private String topologyName;
+    private NetworkMapConfig networkMapConfig;
     private String contextId;
-    private String networkmapResourceId;
+    private ResourceId networkmapResourceId;
+    private TopologyId topologyName;
 
     public AltoAutoMapsOpenflowUpdater(final DataBroker dataBroker) {
-        this.topologyName = DEFAULT_TOPOLOGY_NAME;
         this.contextId = DEFAULT_CONTEXT;
-        this.networkmapResourceId = DEFAULT_AUTO_NETWORKMAP;
+        this.networkmapResourceId = new ResourceId(DEFAULT_AUTO_NETWORKMAP);
+        this.topologyName = new TopologyId(DEFAULT_TOPOLOGY_NAME);
         this.dataBroker = dataBroker;
         this.registration = registerTopologyListener();
     }
 
-    public AltoAutoMapsOpenflowUpdater(String topologyName, String contextId, String networkmapResourceId,
+    public AltoAutoMapsOpenflowUpdater(String contextId, NetworkMapConfig networkMapConfig,
                                        final DataBroker dataBroker) {
-        this.topologyName = topologyName;
         this.contextId = contextId;
-        this.networkmapResourceId = networkmapResourceId;
+        this.networkMapConfig = networkMapConfig;
+        this.networkmapResourceId = networkMapConfig.getResourceId();
+        this.topologyName = ((Openflow) networkMapConfig.getParams()).getOpenflowParams().getTopologyId();
         this.dataBroker = dataBroker;
         this.registration = registerTopologyListener();
     }
@@ -74,7 +80,7 @@ public class AltoAutoMapsOpenflowUpdater implements DataTreeChangeListener<Topol
         InstanceIdentifier<Topology> iid = InstanceIdentifier
                 .builder(NetworkTopology.class)
                 .child(Topology.class,
-                        new TopologyKey(new TopologyId(this.topologyName)))
+                        new TopologyKey(this.topologyName))
                 .build();
         return dataBroker.registerDataTreeChangeListener(new DataTreeIdentifier<>(
                 LogicalDatastoreType.OPERATIONAL, iid), this);
@@ -167,7 +173,7 @@ public class AltoAutoMapsOpenflowUpdater implements DataTreeChangeListener<Topol
                 .setEndpointAddressGroup(emptyEndpointAddressGroup);
         networkMap.add(builder.build());
 
-        ManualMapsUtils.createResourceNetworkMap(this.contextId, this.networkmapResourceId, networkMap, wx);
+        ManualMapsUtils.createResourceNetworkMap(new Uuid(this.contextId), this.networkmapResourceId, networkMap, wx);
     }
 
     private List<IpPrefix> aggregateAddressesList(List<Addresses> addressesList) {

@@ -16,8 +16,9 @@ import org.opendaylight.controller.md.sal.binding.api.DataTreeModification;
 import org.opendaylight.controller.md.sal.binding.api.ReadTransaction;
 import org.opendaylight.controller.md.sal.binding.api.ReadWriteTransaction;
 import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
-import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.ResourceNetworkMap;
-import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.resource.network.map.algorithm.BgpSimpleAsCluster;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.NetworkMapConfig;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.Bgp;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.bgp.BgpParams;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.EndpointAddressType;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.endpoint.address.group.EndpointAddressGroup;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.endpoint.address.group.EndpointAddressGroupBuilder;
@@ -26,6 +27,7 @@ import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.ne
 import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.PidName;
 import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev130715.AsNumber;
 import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev130715.IpPrefix;
+import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev130715.Ipv4Prefix;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.inet.rev171207.bgp.rib.rib.loc.rib.tables.routes.Ipv4RoutesCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.inet.rev171207.ipv4.routes.ipv4.routes.Ipv4Route;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.message.rev171207.path.attributes.attributes.as.path.Segments;
@@ -58,10 +60,11 @@ public class AltoAutoMapsBgpIpv4Updater implements DataTreeChangeListener<Tables
     private final DataBroker dataBroker;
     private ListenerRegistration<?> registration;
     private String contextId;
-    private ResourceNetworkMap networkMapConfig;
+    private NetworkMapConfig networkMapConfig;
+    // TODO: support multiple ribs implementation
     private InstanceIdentifier<Tables> tableIID;
 
-    public AltoAutoMapsBgpIpv4Updater(String contextId, ResourceNetworkMap networkMapConfig, final DataBroker dataBroker) {
+    public AltoAutoMapsBgpIpv4Updater(String contextId, NetworkMapConfig networkMapConfig, final DataBroker dataBroker) {
         this.dataBroker = dataBroker;
         this.contextId = contextId;
         this.networkMapConfig = networkMapConfig;
@@ -74,23 +77,24 @@ public class AltoAutoMapsBgpIpv4Updater implements DataTreeChangeListener<Tables
             registration = dataBroker.registerDataTreeChangeListener(new DataTreeIdentifier<>(
                     LogicalDatastoreType.OPERATIONAL, tableIID), this);
             LOG.info("Listening on BGP Ipv4 Routing Table:", tableIID);
+        } else {
+            LOG.info("No routing table to listen");
         }
-        LOG.info("No routing table to listen");
     }
 
     private void updateNetworkMap() {
         final ReadWriteTransaction wrx = dataBroker.newReadWriteTransaction();
-        List<Map> networkMap = computeNetworkMapByBgpIpv4(networkMapConfig);
+        List<Map> networkMap = computeNetworkMapByBgpIpv4();
         LOG.info("Putting auto generated network-map to manual map config...");
         ManualMapsUtils.createResourceNetworkMap(contextId, networkMapConfig.getResourceId().getValue(),
                 networkMap, wrx);
         wrx.submit();
     }
 
-    private InstanceIdentifier<Tables> getConfiguredIpv4Table(ResourceNetworkMap networkMapConfig) {
-        if (networkMapConfig.getAlgorithm() instanceof BgpSimpleAsCluster) {
-            BgpSimpleAsCluster algorithm = (BgpSimpleAsCluster) networkMapConfig.getAlgorithm();
-            RibId ribId = algorithm.getBgpSimpleAsParams().getBgpRib();
+    private InstanceIdentifier<Tables> getConfiguredIpv4Table(NetworkMapConfig networkMapConfig) {
+        if (networkMapConfig.getParams() instanceof Bgp) {
+            BgpParams params = ((Bgp) networkMapConfig.getParams()).getBgpParams();
+            RibId ribId = params.getBgpRib().get(0).getRibId();
             return InstanceIdentifier.builder(BgpRib.class)
                     .child(Rib.class, new RibKey(ribId))
                     .child(LocRib.class)
@@ -107,7 +111,7 @@ public class AltoAutoMapsBgpIpv4Updater implements DataTreeChangeListener<Tables
         updateNetworkMap();
     }
 
-    private List<Map> computeNetworkMapByBgpIpv4(ResourceNetworkMap networkMapConfig) {
+    private List<Map> computeNetworkMapByBgpIpv4() {
         final ReadTransaction rx = dataBroker.newReadOnlyTransaction();
         List<Map> networkMap = new LinkedList<>();
         try {
@@ -144,6 +148,9 @@ public class AltoAutoMapsBgpIpv4Updater implements DataTreeChangeListener<Tables
     private java.util.Map<String, List<IpPrefix>> getPIDClusters(Ipv4RoutesCase routesCase) {
         java.util.Map<String, List<IpPrefix>> pids = new LinkedHashMap<>();
         for (Ipv4Route route : routesCase.getIpv4Routes().getIpv4Route()) {
+            if (isInternalPrefix(route.getPrefix())) {
+                continue;
+            }
             List<Segments> segments = route.getAttributes().getAsPath().getSegments();
             String pidName = "PID0";
             if (segments != null && !segments.isEmpty()) {
@@ -166,6 +173,11 @@ public class AltoAutoMapsBgpIpv4Updater implements DataTreeChangeListener<Tables
             pids.get(pidName).add(new IpPrefix(route.getPrefix()));
         }
         return pids;
+    }
+
+    private boolean isInternalPrefix(Ipv4Prefix prefix) {
+        // TODO: detect internal prefixes
+        return false;
     }
 
     @Override
