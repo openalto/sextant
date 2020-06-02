@@ -16,12 +16,16 @@ import org.opendaylight.controller.md.sal.binding.api.ReadWriteTransaction;
 import org.opendaylight.controller.md.sal.binding.api.WriteTransaction;
 import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.ConfigContext;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.CostMapConfig;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.NetworkMapConfig;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.cost.map.config.CostType;
+import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.cost.map.config.GeneralParams;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.Algorithm;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.Params;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.algorithm.FirstHopCluster;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.Bgp;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.Openflow;
+import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.CostMetric;
 import org.opendaylight.yangtools.concepts.ListenerRegistration;
 import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
 import org.slf4j.Logger;
@@ -55,6 +59,9 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
         listenerRegs.add(dataBroker.registerDataTreeChangeListener(new DataTreeIdentifier<>(
                 LogicalDatastoreType.CONFIGURATION, configListIID.child(NetworkMapConfig.class)),
                 changes -> onNetworkMapConfigured(changes)));
+        listenerRegs.add(dataBroker.registerDataTreeChangeListener(new DataTreeIdentifier<>(
+                LogicalDatastoreType.CONFIGURATION, configListIID.child(CostMapConfig.class)),
+                changes -> onCostMapConfigured(changes)));
     }
 
     private void onConfigContextChanged(Collection<DataTreeModification<ConfigContext>> changes) {
@@ -112,11 +119,31 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
         rwx.submit();
     }
 
-    private void generateNetworkMapUpdater(String contextId, String resourceId, NetworkMapConfig networkMapConfig) {
-        if (!updaters.containsKey(contextId)) {
-            updaters.put(contextId, new LinkedHashMap<>());
+    private void onCostMapConfigured(Collection<DataTreeModification<CostMapConfig>> changes) {
+        final ReadWriteTransaction rwx = dataBroker.newReadWriteTransaction();
+
+        for (DataTreeModification<CostMapConfig> change : changes) {
+            final DataObjectModification<CostMapConfig> rootNode = change.getRootNode();
+            final InstanceIdentifier<CostMapConfig> identifier = change.getRootPath().getRootIdentifier();
+            final String contextId = identifier.firstKeyOf(ConfigContext.class).getContextId().getValue();
+            switch (rootNode.getModificationType()) {
+                case WRITE:
+                    generateCostMapUpdater(contextId, rootNode.getDataAfter().getResourceId().getValue(),
+                            rootNode.getDataAfter());
+                    break;
+                case SUBTREE_MODIFIED:
+                    // TODO: Update configuration
+                    break;
+                case DELETE:
+                    // TODO
+                    break;
+            }
         }
-        java.util.Map<String, AutoCloseable> contextUpdaters = updaters.get(contextId);
+        rwx.submit();
+    }
+
+    private void generateNetworkMapUpdater(String contextId, String resourceId, NetworkMapConfig networkMapConfig) {
+        java.util.Map<String, AutoCloseable> contextUpdaters = getUpdaterOrCreate(contextId);
         if (contextUpdaters.containsKey(resourceId)) {
             // TODO: handle configuration updates
             LOG.warn("Updating configuration not supported yet");
@@ -132,6 +159,7 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
                 contextUpdaters.put(resourceId, new AltoAutoMapsOpenflowUpdater(contextId, networkMapConfig,
                         dataBroker));
             } else {
+                LOG.warn("Algorithm not supported by OpenFlow network");
             }
         } else if (params instanceof Bgp) {
             if (algorithm == null) {
@@ -147,9 +175,47 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
                             dataBroker));
                 }
             } else {
-                LOG.warn("Algorithm not supported by OpenFlow network");
+                LOG.warn("Algorithm not supported by BGP network");
             }
         }
+    }
+
+    private void generateCostMapUpdater(String contextId, String resourceId, CostMapConfig costMapConfig) {
+        java.util.Map<String, AutoCloseable> contextUpdaters = getUpdaterOrCreate(contextId);
+        if (contextUpdaters.containsKey(resourceId)) {
+            // TODO: handle configuration updates
+            LOG.warn("Updating configuration not supported yet");
+            return;
+        }
+        List<CostType> costTypes = costMapConfig.getCostType();
+        if (costTypes == null || costTypes.isEmpty()) {
+            LOG.warn("MUST set one cost type");
+        }
+        CostType costType = costTypes.get(0);
+        String costMode = costType.getCostMode();
+        CostMetric costMetric = costType.getCostMetric();
+        if (costMode.equals("numerical")) {
+            if (costMetric.getValue().equals("hopcount")) {
+            } else if (costMetric.getValue().equals("routingcost")) {
+                LOG.warn(String.format("Cost-type [%s, %s] not supported yet"), costMode, costMetric.getValue());
+                return;
+            } else {
+                LOG.warn(String.format("Not supported cost metric: %s", costMetric.getValue()));
+                return;
+            }
+        } else if (costMode.equals("ordinal")) {
+            LOG.warn("Cost mode [ordinal] not supported yet");
+            return;
+        } else {
+            LOG.warn(String.format("Not supported cost mode: %s", costMode));
+            return;
+        }
+        GeneralParams params = costMapConfig.getGeneralParams();
+        if (params instanceof org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.cost.map.config.general.params.Bgp) {
+            LOG.info("creating updater for BGP cost map");
+            contextUpdaters.put(resourceId, new AltoAutoMapsCostMapUpdater(contextId, costMapConfig, dataBroker));
+        }
+
     }
 
     private void removeNetworkMapUpdater(String contextId, String resourceId, WriteTransaction wx) {
@@ -168,6 +234,13 @@ public class AltoAutoMapsConfigListener implements AutoCloseable {
 
     private void removeMap(InstanceIdentifier<?> mapIID, final WriteTransaction wx) {
         wx.delete(LogicalDatastoreType.CONFIGURATION, mapIID);
+    }
+
+    private java.util.Map<String, AutoCloseable> getUpdaterOrCreate(String contextId) {
+        if (!updaters.containsKey(contextId)) {
+            updaters.put(contextId, new LinkedHashMap<>());
+        }
+        return updaters.get(contextId);
     }
 
     @Override

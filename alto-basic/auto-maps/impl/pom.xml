@@ -26,9 +26,15 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
   <properties>
     <l2switch.version>0.7.4</l2switch.version>
     <bgpcep.version>0.9.4</bgpcep.version>
+    <jung.version>2.1.1</jung.version>
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>alto-simple-ird-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>alto-auto-maps-api</artifactId>
@@ -82,6 +88,22 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
       <version>${bgpcep.version}</version>
     </dependency>
 
+    <dependency>
+      <groupId>net.sf.jung</groupId>
+      <artifactId>jung-api</artifactId>
+      <version>${jung.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.sf.jung</groupId>
+      <artifactId>jung-algorithms</artifactId>
+      <version>${jung.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.sf.jung</groupId>
+      <artifactId>jung-graph-impl</artifactId>
+      <version>${jung.version}</version>
+    </dependency>
+
     <!-- Testing Dependencies -->
     <dependency>
       <groupId>junit</groupId>
@@ -95,4 +117,41 @@ and is available at http://www.eclipse.org/legal/epl-v10.html
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <version>${bundle.plugin.version}</version>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Export-Package>
+              org.apache.commons*,
+              edu.uci.ics.jung.algorithms.blockmodel,
+              edu.uci.ics.jung.algorithms.cluster,
+              edu.uci.ics.jung.algorithms.filters,
+              edu.uci.ics.jung.algorithms.flows,
+              edu.uci.ics.jung.algorithms.generators,
+              edu.uci.ics.jung.algorithms.generators.random,
+              edu.uci.ics.jung.algorithms.layout,
+              edu.uci.ics.jung.algorithms.layout.util,
+              edu.uci.ics.jung.algorithms.metrics,
+              edu.uci.ics.jung.algorithms.scoring,
+              edu.uci.ics.jung.algorithms.scoring.util,
+              edu.uci.ics.jung.algorithms.shortestpath,
+              edu.uci.ics.jung.algorithms.transformation,
+              edu.uci.ics.jung.algorithms.util,
+              edu.uci.ics.jung.graph;-split-package:=merge-first,
+              edu.uci.ics.jung.graph.event,
+              edu.uci.ics.jung.graph.util;-split-package:=merge-first,
+              org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105
+            </Export-Package>
+            <Import-Package>*</Import-Package>
+          </instructions>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>

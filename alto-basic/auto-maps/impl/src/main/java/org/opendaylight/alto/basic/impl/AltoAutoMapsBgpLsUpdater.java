@@ -143,6 +143,7 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
                         if ((prefixList == null) || prefixList.isEmpty()) {
                             continue;
                         }
+                        // TODO: support IPv6 prefixes
                         networkMap.add(new MapBuilder()
                                 .setPid(new PidName(pidName))
                                 .setEndpointAddressGroup(Arrays.asList(new EndpointAddressGroup[]{
@@ -290,6 +291,6 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
         if (registration != null) {
             registration.close();
         }
-        LOG.info("BGP IPv4 updater closed");
+        LOG.info("BGP LS updater closed");
     }
 }

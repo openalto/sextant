@@ -95,6 +95,7 @@ module alto-model-costmap {
                     }
                 }
             }
+            uses "alto-types:dependent-vtags";
         }
     }
 

@@ -33,6 +33,7 @@ import org.opendaylight.controller.md.sal.binding.api.ReadOnlyTransaction;
 import org.opendaylight.yang.gen.v1.urn.alto.resourcepool.rev150921.context.resource.ContextTag;
 import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.CostMetric;
 import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.PidName;
+import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.dependent.vtags.DependentVtags;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.costmap.rev151021.AltoModelCostmapService;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.costmap.rev151021.QueryInput;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.costmap.rev151021.QueryOutput;
@@ -171,7 +172,8 @@ public class AltoNorthboundCostmapTest {
         rfc7285costType.metric = costmetri;
         rfc7285costType.mode = costmode;
         meta.costType = rfc7285costType;
-        doReturn(meta).when(costmapSpy).buildMeta((InstanceIdentifier<?>) anyObject(), (RFC7285CostType)anyObject());
+        doReturn(meta).when(costmapSpy).buildMeta((InstanceIdentifier<?>) anyObject(), (RFC7285CostType) anyObject(),
+                (List<DependentVtags>) anyObject());
 
         //start test
         costmapSpy.init();

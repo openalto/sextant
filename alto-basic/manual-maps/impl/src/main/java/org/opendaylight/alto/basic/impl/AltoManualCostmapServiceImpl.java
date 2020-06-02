@@ -21,6 +21,7 @@ import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.rev151021.config.contex
 import org.opendaylight.yang.gen.v1.urn.alto.resourcepool.rev150921.context.Resource;
 import org.opendaylight.yang.gen.v1.urn.alto.resourcepool.rev150921.context.resource.ContextTag;
 import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.ResourceId;
+import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.dependent.vtags.DependentVtags;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.costmap.rev151021.AltoModelCostmapService;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.costmap.rev151021.QueryInput;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.alto.service.model.costmap.rev151021.QueryOutput;
@@ -77,11 +78,14 @@ public class AltoManualCostmapServiceImpl implements AltoModelCostmapService {
         String tag = ctagIID.firstKeyOf(ContextTag.class).getTag().getValue();
 
         ReadOnlyTransaction rx = this.dataBroker.newReadOnlyTransaction();
-        List<CostmapSource> costmapSources = getFilteredCostmap(resourceId, tag, filter, rx);
+        ResourceCostMap resourceCostMap = readResourceCostMap(resourceId, tag, rx);
+        List<DependentVtags> dependentVtags = resourceCostMap.getMeta().getDependentVtags();
+        List<CostmapSource> costmapSources = getFilteredCostmap(filter, resourceCostMap);
 
         CostmapResponseDataBuilder cmrdBuilder = new CostmapResponseDataBuilder();
         cmrdBuilder.setCostType(costType);
         cmrdBuilder.setCostmapSource(costmapSources);
+        cmrdBuilder.setDependentVtags(dependentVtags);
 
         CostmapResponseBuilder cmrBuilder = new CostmapResponseBuilder();
         cmrBuilder.setCostmapResponseData(cmrdBuilder.build());
@@ -91,8 +95,7 @@ public class AltoManualCostmapServiceImpl implements AltoModelCostmapService {
         return RpcResultBuilder.success(builder.build()).buildFuture();
     }
 
-    private List<CostmapSource> getFilteredCostmap(ResourceId resourceId, String tag,
-                                                   CostmapFilter filter, ReadOnlyTransaction rx) {
+    private ResourceCostMap readResourceCostMap(ResourceId resourceId, String tag, ReadOnlyTransaction rx) {
         InstanceIdentifier<ResourceCostMap> costMapIID =
                 ManualMapsUtils.getResourceCostMapIID(resourceId.getValue());
         Future<Optional<ResourceCostMap>> rcmFuture =
@@ -107,38 +110,43 @@ public class AltoManualCostmapServiceImpl implements AltoModelCostmapService {
         if (optional.isPresent()) {
             resourceCostMap = optional.get();
         }
+        return resourceCostMap;
+    }
 
+    private List<CostmapSource> getFilteredCostmap(CostmapFilter filter, ResourceCostMap resourceCostMap) {
         List<CostmapSource> costmapSources = new LinkedList<>();
-        for (Map entry : resourceCostMap.getMap()) {
-            if (filter!=null && filter.getPidSource()!=null && !filter.getPidSource().isEmpty()
-                    && !filter.getPidSource().contains(entry.getSrc())) {
-                continue;
-            }
-
-            CostmapSourceBuilder costmapSourceBuilder = new CostmapSourceBuilder();
-            costmapSourceBuilder.setPidSource(entry.getSrc());
-            List<CostmapDestination> costmapDestinations = new LinkedList<>();
-            for (DstCosts dstCosts : entry.getDstCosts()) {
-                if (filter!=null && filter.getPidDestination()!=null && !filter.getPidDestination().isEmpty()
-                        && !filter.getPidDestination().contains(dstCosts.getDst())) {
+        if (resourceCostMap != null) {
+            for (Map entry : resourceCostMap.getMap()) {
+                if (filter!=null && filter.getPidSource()!=null && !filter.getPidSource().isEmpty()
+                        && !filter.getPidSource().contains(entry.getSrc())) {
                     continue;
                 }
-                CostmapDestinationBuilder costmapDestinationBuilder = new CostmapDestinationBuilder();
-                costmapDestinationBuilder.setPidDestination(dstCosts.getDst());
-                Cost cost = dstCosts.getCost();
-                if (cost instanceof TypeNumerical) {
-                    costmapDestinationBuilder.setCost(new NumericalBuilder()
-                            .setCost(((TypeNumerical) cost).getNumericalCostValue())
-                            .build());
-                } else if (cost instanceof TypeOrdinal) {
-                    costmapDestinationBuilder.setCost(new OrdinalBuilder()
-                            .setCost(((TypeOrdinal) cost).getOrdinalCostValue())
-                            .build());
+
+                CostmapSourceBuilder costmapSourceBuilder = new CostmapSourceBuilder();
+                costmapSourceBuilder.setPidSource(entry.getSrc());
+                List<CostmapDestination> costmapDestinations = new LinkedList<>();
+                for (DstCosts dstCosts : entry.getDstCosts()) {
+                    if (filter!=null && filter.getPidDestination()!=null && !filter.getPidDestination().isEmpty()
+                            && !filter.getPidDestination().contains(dstCosts.getDst())) {
+                        continue;
+                    }
+                    CostmapDestinationBuilder costmapDestinationBuilder = new CostmapDestinationBuilder();
+                    costmapDestinationBuilder.setPidDestination(dstCosts.getDst());
+                    Cost cost = dstCosts.getCost();
+                    if (cost instanceof TypeNumerical) {
+                        costmapDestinationBuilder.setCost(new NumericalBuilder()
+                                .setCost(((TypeNumerical) cost).getNumericalCostValue())
+                                .build());
+                    } else if (cost instanceof TypeOrdinal) {
+                        costmapDestinationBuilder.setCost(new OrdinalBuilder()
+                                .setCost(((TypeOrdinal) cost).getOrdinalCostValue())
+                                .build());
+                    }
+                    costmapDestinations.add(costmapDestinationBuilder.build());
                 }
-                costmapDestinations.add(costmapDestinationBuilder.build());
+                costmapSourceBuilder.setCostmapDestination(costmapDestinations);
+                costmapSources.add(costmapSourceBuilder.build());
             }
-            costmapSourceBuilder.setCostmapDestination(costmapDestinations);
-            costmapSources.add(costmapSourceBuilder.build());
         }
         return costmapSources;
     }

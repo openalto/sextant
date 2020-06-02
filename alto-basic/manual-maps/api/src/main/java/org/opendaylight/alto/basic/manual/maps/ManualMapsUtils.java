@@ -35,6 +35,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 public class ManualMapsUtils {
 
@@ -161,7 +162,21 @@ public class ManualMapsUtils {
             Meta meta,
             List<org.opendaylight.yang.gen.v1.urn.alto.manual.maps.costmap.rev151021.cost.map.Map> costMap,
             WriteTransaction wx) {
-        InstanceIdentifier<ResourceCostMap> iid = getResourceCostMapIID(rid);
+        return createResourceCostMap(DEFAULT_CONTEXT, rid, meta, costMap, wx);
+    }
+
+    public static InstanceIdentifier<ResourceCostMap> createResourceCostMap(String cid, String rid,
+            Meta meta,
+            List<org.opendaylight.yang.gen.v1.urn.alto.manual.maps.costmap.rev151021.cost.map.Map> costMap,
+            WriteTransaction wx) {
+        return createResourceCostMap(new Uuid(cid), new ResourceId(rid), meta, costMap, wx);
+    }
+
+    public static InstanceIdentifier<ResourceCostMap> createResourceCostMap(Uuid cid, ResourceId rid,
+            Meta meta,
+            List<org.opendaylight.yang.gen.v1.urn.alto.manual.maps.costmap.rev151021.cost.map.Map> costMap,
+            WriteTransaction wx) {
+        InstanceIdentifier<ResourceCostMap> iid = getResourceCostMapIID(cid, rid);
         ResourceCostMapBuilder builder = new ResourceCostMapBuilder()
             .setTag(new Tag(UUID.randomUUID()
                 .toString()
@@ -205,5 +220,38 @@ public class ManualMapsUtils {
 
     public static void deleteResourceCostMap(Uuid cid, ResourceId rid, final WriteTransaction wx) {
         wx.delete(LogicalDatastoreType.CONFIGURATION, getResourceCostMapIID(cid, rid));
+    }
+
+    public static ResourceNetworkMap readResourceNetworkMap(String rid, final ReadTransaction rx) {
+        return readResourceNetworkMap(DEFAULT_CONTEXT, rid, rx);
+    }
+
+    public static ResourceNetworkMap readResourceNetworkMap(ResourceId rid, final ReadTransaction rx) {
+        return readResourceNetworkMap(DEFAULT_CONTEXT, rid, rx);
+    }
+
+    public static ResourceNetworkMap readResourceNetworkMap(String cid, String rid, final ReadTransaction rx) {
+        return readResourceNetworkMap(new Uuid(cid), new ResourceId(rid), rx);
+    }
+
+    public static ResourceNetworkMap readResourceNetworkMap(String cid, ResourceId rid, final ReadTransaction rx) {
+        return readResourceNetworkMap(new Uuid(cid), rid, rx);
+    }
+
+    public static ResourceNetworkMap readResourceNetworkMap(Uuid cid, ResourceId rid, final ReadTransaction rx) {
+        InstanceIdentifier<ResourceNetworkMap> networkMapIID =
+                ManualMapsUtils.getResourceNetworkMapIID(cid, rid);
+        Future<Optional<ResourceNetworkMap>> rnmFuture =
+                rx.read(LogicalDatastoreType.OPERATIONAL, networkMapIID);
+        Optional<ResourceNetworkMap> optional = null;
+        try {
+            optional = rnmFuture.get();
+        } catch (Exception e) {
+            return null;
+        }
+        if (optional==null || !optional.isPresent()) {
+            return null;
+        }
+        return optional.get();
     }
 }

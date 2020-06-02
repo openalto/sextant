@@ -12,6 +12,7 @@
 *.old
 *.bak
 *.xmi
+*.zip
 *~
 .DS_STORE
 .NERDTreeBookmarksFile
@@ -30,6 +31,7 @@ dist
 eclimd.log
 maven-eclipse.xml
 out/
+tmp/
 products
 repository
 target

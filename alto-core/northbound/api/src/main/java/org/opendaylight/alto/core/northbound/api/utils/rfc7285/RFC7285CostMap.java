@@ -27,6 +27,9 @@ public class RFC7285CostMap {
 
         @JsonProperty("cost-type")
         public RFC7285CostType costType;
+
+        @JsonProperty("vtag")
+        public RFC7285VersionTag vtag;
     }
 
     /**

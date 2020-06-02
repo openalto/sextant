@@ -269,6 +269,29 @@ public class ResourcepoolUtils {
         return tag;
     }
 
+    public static Resource readResource(String cid, String rid, final ReadTransaction rx) {
+        return readResource(new Uuid(cid), new ResourceId(rid), rx);
+    }
+
+    public static Resource readResource(String cid, ResourceId rid, final ReadTransaction rx) {
+        return readResource(new Uuid(cid), rid, rx);
+    }
+
+    public static Resource readResource(Uuid cid, ResourceId rid, final ReadTransaction rx) {
+        InstanceIdentifier<Resource> iid = getResourceIID(cid, rid);
+
+        Optional<Resource> resource = null;
+        try {
+            resource = rx.read(LogicalDatastoreType.OPERATIONAL, iid).get();
+        } catch (InterruptedException | ExecutionException e) {
+            return null;
+        }
+        if (resource.isPresent()) {
+            return resource.get();
+        }
+        return null;
+    }
+
     /*
      * For those who don't have dependencies
      * */

@@ -25,6 +25,7 @@ import org.opendaylight.alto.core.northbound.api.utils.rfc7285.RFC7285VersionTag
 import org.opendaylight.controller.md.sal.binding.api.ReadOnlyTransaction;
 import org.opendaylight.controller.md.sal.binding.api.ReadTransaction;
 import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
+import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.dependent.vtags.DependentVtags;
 import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev130715.Uri;
 import org.opendaylight.yang.gen.v1.urn.alto.northbound.route.costmap.rev151021.Records;
 import org.opendaylight.yang.gen.v1.urn.alto.northbound.route.costmap.rev151021.records.Record;
@@ -362,12 +363,20 @@ public class AltoNorthboundRouteCostmap implements AltoNorthboundRoute {
 
 
 
-    protected RFC7285CostMap.Meta buildMeta(InstanceIdentifier<?> iid, RFC7285CostType costtype) {
+    protected RFC7285CostMap.Meta buildMeta(InstanceIdentifier<?> iid, RFC7285CostType costtype,
+                                            List<DependentVtags> dependentVtags) {
         RFC7285CostMap.Meta meta = new RFC7285CostMap.Meta();
-        RFC7285VersionTag vtag = new RFC7285VersionTag();
-        vtag.rid = iid.firstKeyOf(Resource.class).getResourceId().getValue();
-        vtag.tag = iid.firstKeyOf(ContextTag.class).getTag().getValue();
-        meta.netmap_tags.add(vtag);
+        meta.vtag = new RFC7285VersionTag();
+        meta.vtag.rid = iid.firstKeyOf(Resource.class).getResourceId().getValue();
+        meta.vtag.tag = iid.firstKeyOf(ContextTag.class).getTag().getValue();
+        if (dependentVtags != null) {
+            for (DependentVtags dependentVtag : dependentVtags) {
+                RFC7285VersionTag vtag = new RFC7285VersionTag();
+                vtag.rid = dependentVtag.getResourceId().getValue();
+                vtag.tag = dependentVtag.getTag().getValue();
+                meta.netmap_tags.add(vtag);
+            }
+        }
         meta.costType = costtype;
         return meta;
     }
@@ -410,7 +419,7 @@ public class AltoNorthboundRouteCostmap implements AltoNorthboundRoute {
 
         }
 
-        rfccostmap.meta = buildMeta(input.getServiceReference(), rfccosttype);
+        rfccostmap.meta = buildMeta(input.getServiceReference(), rfccosttype, responseData.getDependentVtags());
         rfccostmap.map = costmapsource;
 
         String responseString = mapper.writeValueAsString(rfccostmap);
