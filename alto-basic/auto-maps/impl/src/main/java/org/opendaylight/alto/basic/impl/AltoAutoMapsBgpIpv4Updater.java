@@ -30,6 +30,7 @@ import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.
 import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev130715.Ipv4Prefix;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.inet.rev171207.bgp.rib.rib.loc.rib.tables.routes.Ipv4RoutesCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.inet.rev171207.ipv4.routes.ipv4.routes.Ipv4Route;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.message.rev171207.path.attributes.attributes.OriginatorId;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.message.rev171207.path.attributes.attributes.as.path.Segments;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.BgpRib;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.RibId;
@@ -46,6 +47,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -84,6 +88,7 @@ public class AltoAutoMapsBgpIpv4Updater implements DataTreeChangeListener<Tables
 
     private void updateNetworkMap() {
         final ReadWriteTransaction wrx = dataBroker.newReadWriteTransaction();
+        LOG.debug("Computing network map from BGP IPv4 routes...");
         List<Map> networkMap = computeNetworkMapByBgpIpv4();
         LOG.info("Putting auto generated network-map to manual map config...");
         ManualMapsUtils.createResourceNetworkMap(contextId, networkMapConfig.getResourceId().getValue(),
@@ -119,18 +124,17 @@ public class AltoAutoMapsBgpIpv4Updater implements DataTreeChangeListener<Tables
             if (optional.isPresent()) {
                 Tables table = optional.get();
                 if (table.getRoutes() instanceof Ipv4RoutesCase) {
+                    LOG.debug("Computing PIDs from BGP IPv4 routes...");
                     java.util.Map<String, List<IpPrefix>> pids = getPIDClusters((Ipv4RoutesCase) table.getRoutes());
                     for (java.util.Map.Entry<String, List<IpPrefix>> entry : pids.entrySet()) {
                         String pidName = entry.getKey();
                         List<IpPrefix> prefixList = entry.getValue();
                         networkMap.add(new MapBuilder()
                                 .setPid(new PidName(pidName))
-                                .setEndpointAddressGroup(Arrays.asList(new EndpointAddressGroup[]{
-                                        new EndpointAddressGroupBuilder()
-                                                .setAddressType(new EndpointAddressType(EndpointAddressType.Enumeration.Ipv4))
-                                                .setEndpointPrefix(prefixList)
-                                                .build()
-                                }))
+                                .setEndpointAddressGroup(Arrays.asList(new EndpointAddressGroupBuilder()
+                                        .setAddressType(new EndpointAddressType(EndpointAddressType.Enumeration.Ipv4))
+                                        .setEndpointPrefix(prefixList)
+                                        .build()))
                                 .build());
                     }
                 } else {
@@ -139,7 +143,7 @@ public class AltoAutoMapsBgpIpv4Updater implements DataTreeChangeListener<Tables
             } else {
                 LOG.error("BGP Local RIB not found");
             }
-        } catch (InterruptedException | ExecutionException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return networkMap;
@@ -152,27 +156,55 @@ public class AltoAutoMapsBgpIpv4Updater implements DataTreeChangeListener<Tables
                 continue;
             }
             List<Segments> segments = route.getAttributes().getAsPath().getSegments();
-            String pidName = "PID0";
+            LOG.debug("get route segments");
+            OriginatorId originatorId = route.getAttributes().getOriginatorId();
+            LOG.debug("get route originator");
+            String asNumber = "0";
             if (segments != null && !segments.isEmpty()) {
                 List<AsNumber> asSequence = segments.get(segments.size() - 1).getAsSequence();
                 if (asSequence != null && !asSequence.isEmpty()) {
-                    pidName = "PID" + asSequence.get(asSequence.size() - 1).getValue().toString();
+                    asNumber = asSequence.get(asSequence.size() - 1).getValue().toString();
                 } else {
                     List<AsNumber> asSet = segments.get(segments.size() - 1).getAsSet();
                     if (asSet != null && !asSet.isEmpty()) {
-                        pidName = "PID" + String.join("-",
+                        asNumber = String.join("-",
                                 (String[]) Arrays.stream((AsNumber[]) asSet.toArray())
                                         .map(s -> s.getValue().toString())
                                         .toArray());
                     }
                 }
             }
+            LOG.debug("get route first-hop as number: {}", asNumber);
+            String originator = "0";
+            if (originatorId != null) {
+                originator = originatorId.getOriginator().getValue();
+            }
+            LOG.debug("get route first-hop ip: {}", originator);
+            String pidName = "PID" + getHashedPIDName(asNumber, originator);
+            LOG.debug("generator PID name: {}", pidName);
             if (!pids.containsKey(pidName)) {
                 pids.put(pidName, new LinkedList<>());
             }
             pids.get(pidName).add(new IpPrefix(route.getPrefix()));
         }
         return pids;
+    }
+
+    private String getHashedPIDName(String asNumber, String originator) {
+        return asNumber + ":" + getHexStrByIp(originator);
+    }
+
+    private String getHexStrByIp(String ipstr) {
+        String hex = "00000000";
+        try {
+            InetAddress ipaddr = InetAddress.getByName(ipstr);
+            byte[] addr = ipaddr.getAddress();
+            BigInteger bint = new BigInteger(1, addr);
+            hex = String.format("%0" + (addr.length << 1) + "x", bint);
+        } catch (UnknownHostException e) {
+            LOG.debug("Illegal IP address");
+        }
+        return hex;
     }
 
     private boolean isInternalPrefix(Ipv4Prefix prefix) {

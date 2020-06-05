@@ -9,12 +9,6 @@ package org.opendaylight.alto.basic.impl;
 
 import com.google.common.base.Optional;
 import com.google.common.util.concurrent.SettableFuture;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Future;
 import org.opendaylight.alto.basic.simpleird.SimpleIrdUtils;
 import org.opendaylight.alto.core.resourcepool.ResourcepoolUtils;
 import org.opendaylight.controller.md.sal.binding.api.DataBroker;
@@ -49,6 +43,13 @@ import org.opendaylight.yangtools.concepts.ListenerRegistration;
 import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Future;
 
 /**
  * SimpleIrdEntryListener listens only to creation/deletion/update of the
