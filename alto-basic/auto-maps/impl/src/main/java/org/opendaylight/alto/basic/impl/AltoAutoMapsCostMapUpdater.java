@@ -36,14 +36,20 @@ import org.opendaylight.yang.gen.v1.urn.alto.types.rev150921.dependent.vtags.Dep
 import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev130715.IpPrefix;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.LinkstateAddressFamily;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.LinkstateSubsequentAddressFamily;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.OspfRouteType;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.ProtocolId;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.bgp.rib.rib.loc.rib.tables.routes.LinkstateRoutesCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.object.type.LinkCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.object.type.NodeCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.object.type.PrefixCase;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.object.type.node._case.NodeDescriptors;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.object.type.prefix._case.PrefixDescriptors;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.path.attribute.link.state.attribute.PrefixAttributesCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.routes.LinkstateRoutes;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.routes.linkstate.routes.LinkstateRoute;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.routes.linkstate.routes.linkstate.route.Attributes1;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.OspfNodeCase;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.message.rev171207.path.attributes.Attributes;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.BgpRib;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.RibId;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.bgp.rib.Rib;
@@ -63,7 +69,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 public class AltoAutoMapsCostMapUpdater implements DataTreeChangeListener<Tables>, AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(AltoAutoMapsCostMapUpdater.class);
@@ -213,7 +218,7 @@ public class AltoAutoMapsCostMapUpdater implements DataTreeChangeListener<Tables
             } else {
                 LOG.error("BGP local rib not found");
             }
-        } catch (InterruptedException | ExecutionException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -224,27 +229,47 @@ public class AltoAutoMapsCostMapUpdater implements DataTreeChangeListener<Tables
             if (route.getProtocolId() == ProtocolId.Ospf) {
                 if (route.getObjectType() instanceof NodeCase) {
                     // add new vertex to graph
-                    Long nodeId = ((OspfNodeCase) ((NodeCase) route.getObjectType())
-                            .getNodeDescriptors().getCRouterIdentifier()).getOspfNode().getOspfRouterId();
-                    if (!topology.containsNode(nodeId)) {
-                        topology.addNode(nodeId);
+                    NodeDescriptors nodeDesc = ((NodeCase) route.getObjectType()).getNodeDescriptors();
+                    Long nodeId = ((OspfNodeCase) nodeDesc.getCRouterIdentifier()).getOspfNode().getOspfRouterId();
+                    Long areaId = nodeDesc.getAreaId().getValue();
+                    if (!topology.containsNode(areaId, nodeId)) {
+                        LOG.debug("Add new node [areaId={}, nodeId={}] to topology", areaId, nodeId);
+                        topology.addNode(areaId, nodeId);
                     }
                 } else if (route.getObjectType() instanceof PrefixCase) {
                     // map a prefix to a vertex
-                    IpPrefix prefix = ((PrefixCase) route.getObjectType()).getPrefixDescriptors().getIpReachabilityInformation();
+                    PrefixDescriptors prefixDesc = ((PrefixCase) route.getObjectType()).getPrefixDescriptors();
+                    IpPrefix prefix = prefixDesc.getIpReachabilityInformation();
                     String prefixStr = prefix.getIpv4Prefix() != null ?
                             prefix.getIpv4Prefix().getValue() : prefix.getIpv6Prefix().getValue();
                     Long originId = ((OspfNodeCase) ((PrefixCase) route.getObjectType())
                             .getAdvertisingNodeDescriptors().getCRouterIdentifier()).getOspfNode().getOspfRouterId();
-                    topology.addPrefix(prefixStr, originId);
+                    Long areaId = ((PrefixCase) route.getObjectType()).getAdvertisingNodeDescriptors().getAreaId().getValue();
+                    Long metric = ((PrefixAttributesCase) route.getAttributes().getAugmentation(Attributes1.class)
+                            .getLinkStateAttribute()).getPrefixAttributes().getPrefixMetric().getValue();
+                    if (prefixDesc.getOspfRouteType().equals(OspfRouteType.IntraArea)) {
+                        LOG.debug("Add new intra first hop for [prefix={}, areaId={}, nodeId={}] to topology", prefixStr, areaId, originId);
+                        topology.addIntraPrefix(prefixStr, areaId, originId);
+                    } else if (prefixDesc.getOspfRouteType().equals(OspfRouteType.InterArea)) {
+                        LOG.debug("Add new inter first hop [prefix={}, areaId={}, nodeId={}, metric={}] to topology", prefixStr, areaId, originId, metric);
+                        topology.addInterPrefix(prefixStr, areaId, originId, metric);
+                    } else {
+                        LOG.debug("Linkstate route type not supported yet");
+                    }
                 } else if (route.getObjectType() instanceof LinkCase) {
                     // add new edge to graph
                     String linkId = String.valueOf(route.getRouteKey());
-                    Long sourceId = ((OspfNodeCase) ((LinkCase) route.getObjectType())
-                            .getLocalNodeDescriptors().getCRouterIdentifier()).getOspfNode().getOspfRouterId();
-                    Long destId = ((OspfNodeCase) ((LinkCase) route.getObjectType())
-                            .getRemoteNodeDescriptors().getCRouterIdentifier()).getOspfNode().getOspfRouterId();
-                    topology.addLink(linkId, sourceId, destId);
+                    LinkCase link = (LinkCase) route.getObjectType();
+                    Long sourceId = ((OspfNodeCase) link.getLocalNodeDescriptors().getCRouterIdentifier())
+                            .getOspfNode().getOspfRouterId();
+                    Long sourceAreaId = link.getLocalNodeDescriptors().getAreaId().getValue();
+                    Long destId = ((OspfNodeCase) link.getRemoteNodeDescriptors().getCRouterIdentifier())
+                            .getOspfNode().getOspfRouterId();
+                    Long destAreaId = link.getRemoteNodeDescriptors().getAreaId().getValue();
+                    if (sourceAreaId.equals(destAreaId)) {
+                        LOG.debug("Add new link [areaId={}, sourceId={}, destId={}] to topology", sourceAreaId, sourceId, destId);
+                        topology.addLink(linkId, sourceAreaId, sourceId, destId);
+                    }
                 }
             } else {
                 LOG.warn("Protocol not supported yet");
