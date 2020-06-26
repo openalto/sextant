@@ -144,10 +144,13 @@ public class AltoTopology {
                 return MAX_HOP_COUNT;
             }
             int cost = MAX_HOP_COUNT;
+            int estimateCost = MAX_HOP_COUNT;
             Long currentAbrId = null;
             for (Long abrId : destInterOrigins.keySet()) {
-                int currentCost = getDistance(currentAreaId, sourceOrigins.intraOriginId, abrId) + destInterOrigins.get(abrId).intValue();
-                if (currentCost < cost) {
+                int currentCost = getDistance(currentAreaId, currentSourceId, abrId);
+                int currentEstimateCost = currentCost + destInterOrigins.get(abrId).intValue();
+                if (currentEstimateCost < estimateCost) {
+                    estimateCost = currentEstimateCost;
                     cost = currentCost;
                     currentAbrId = abrId;
                 }
