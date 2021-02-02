@@ -19,7 +19,6 @@ import org.opendaylight.controller.md.sal.binding.api.ReadWriteTransaction;
 import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.NetworkMapConfig;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.algorithm.FirstHopCluster;
-import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.algorithm.first.hop.cluster.FirstHopClusterAlgorithm;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.Bgp;
 import org.opendaylight.yang.gen.v1.urn.alto.auto.maps.rev150105.config.context.network.map.config.params.bgp.BgpParams;
 import org.opendaylight.yang.gen.v1.urn.alto.manual.maps.networkmap.rev151021.EndpointAddressType;
@@ -45,7 +44,9 @@ import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.link
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.object.type.prefix._case.AdvertisingNodeDescriptors;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.routes.linkstate.routes.LinkstateRoute;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.CRouterIdentifier;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.IsisNodeCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.OspfNodeCase;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.isis.node._case.IsisNode;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.ospf.node._case.OspfNode;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.BgpRib;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.RibId;
@@ -60,6 +61,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -171,7 +173,9 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
     private java.util.Map<String, List<IpPrefix>> getPIDClusters(LinkstateRoutesCase routesCase) {
         java.util.Map<String, List<IpPrefix>> pids = new LinkedHashMap<>();
         for (LinkstateRoute route : routesCase.getLinkstateRoutes().getLinkstateRoute()) {
-            if (route.getProtocolId() == ProtocolId.Ospf) {
+            if (route.getProtocolId() == ProtocolId.Ospf ||
+                    route.getProtocolId() == ProtocolId.IsisLevel1 ||
+                    route.getProtocolId() == ProtocolId.IsisLevel2) {
                 if (route.getObjectType() instanceof PrefixCase) {
                     PrefixCase prefixCase = (PrefixCase) route.getObjectType();
                     IpPrefix prefix = prefixCase.getPrefixDescriptors().getIpReachabilityInformation();
@@ -199,7 +203,9 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
             }
         }
         for (LinkstateRoute route : routesCase.getLinkstateRoutes().getLinkstateRoute()) {
-            if (route.getProtocolId() == ProtocolId.Ospf) {
+            if (route.getProtocolId() == ProtocolId.Ospf ||
+                    route.getProtocolId() == ProtocolId.IsisLevel1 ||
+                    route.getProtocolId() == ProtocolId.IsisLevel2) {
                 if (route.getObjectType() instanceof LinkCase) {
                     LinkCase linkCase = (LinkCase) route.getObjectType();
                     Ipv4Address src = linkCase.getLinkDescriptors().getIpv4InterfaceAddress();
@@ -276,13 +282,18 @@ public class AltoAutoMapsBgpLsUpdater implements DataTreeChangeListener<Tables>,
         pidName += (asNumber == null) ? "0" : asNumber.getValue().toString();
         pidName += separator + ((domainId == null) ? "0" : domainId.getValue().toString());
         pidName += separator + ((areaId == null) ? "0" : areaId.getValue().toString());
+        String nodeId = "";
         if (cRouterId instanceof OspfNodeCase) {
             OspfNode ospfNode = ((OspfNodeCase) cRouterId).getOspfNode();
-            pidName += separator + Integer.toHexString(ospfNode.getOspfRouterId().intValue());
+            nodeId = Integer.toHexString(ospfNode.getOspfRouterId().intValue());
+        } else if (cRouterId instanceof IsisNodeCase) {
+            IsisNode isisNode = ((IsisNodeCase) cRouterId).getIsisNode();
+            nodeId = String.format("%012x", new BigInteger(1, isisNode.getIsoSystemId().getValue()));
         } else {
             LOG.debug("Node not support yet");
             return null;
         }
+        pidName += separator + nodeId;
         return pidName;
     }
 

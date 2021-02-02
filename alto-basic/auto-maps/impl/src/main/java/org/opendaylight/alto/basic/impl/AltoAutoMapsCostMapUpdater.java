@@ -48,8 +48,9 @@ import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.link
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.routes.LinkstateRoutes;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.routes.linkstate.routes.LinkstateRoute;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.routes.linkstate.routes.linkstate.route.Attributes1;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.CRouterIdentifier;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.IsisNodeCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.OspfNodeCase;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.message.rev171207.path.attributes.Attributes;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.BgpRib;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.RibId;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.bgp.rib.Rib;
@@ -64,6 +65,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -223,16 +225,30 @@ public class AltoAutoMapsCostMapUpdater implements DataTreeChangeListener<Tables
         }
     }
 
+    private Long getNodeId(CRouterIdentifier cRouterIdentifier) {
+        Long nodeId = null;
+        if (cRouterIdentifier instanceof OspfNodeCase) {
+            nodeId = ((OspfNodeCase) cRouterIdentifier).getOspfNode().getOspfRouterId();
+        } else if (cRouterIdentifier instanceof IsisNodeCase) {
+            nodeId = new BigInteger(1, ((IsisNodeCase) cRouterIdentifier).getIsisNode().getIsoSystemId().getValue()).longValue();
+        } else {
+            LOG.warn("Protocol not supported yet");
+        }
+        return nodeId;
+    }
+
     private void loadTopologyFromLinkstate(LinkstateRoutes routes) {
         topology = new AltoTopology();
         for (LinkstateRoute route : routes.getLinkstateRoute()) {
-            if (route.getProtocolId() == ProtocolId.Ospf) {
+            if (route.getProtocolId() == ProtocolId.Ospf ||
+                    route.getProtocolId() == ProtocolId.IsisLevel1 ||
+                    route.getProtocolId() == ProtocolId.IsisLevel2) {
                 if (route.getObjectType() instanceof NodeCase) {
                     // add new vertex to graph
                     NodeDescriptors nodeDesc = ((NodeCase) route.getObjectType()).getNodeDescriptors();
-                    Long nodeId = ((OspfNodeCase) nodeDesc.getCRouterIdentifier()).getOspfNode().getOspfRouterId();
+                    Long nodeId = getNodeId(nodeDesc.getCRouterIdentifier());
                     Long areaId = nodeDesc.getAreaId().getValue();
-                    if (!topology.containsNode(areaId, nodeId)) {
+                    if (nodeId != null && !topology.containsNode(areaId, nodeId)) {
                         LOG.debug("Add new node [areaId={}, nodeId={}] to topology", areaId, nodeId);
                         topology.addNode(areaId, nodeId);
                     }
@@ -242,15 +258,18 @@ public class AltoAutoMapsCostMapUpdater implements DataTreeChangeListener<Tables
                     IpPrefix prefix = prefixDesc.getIpReachabilityInformation();
                     String prefixStr = prefix.getIpv4Prefix() != null ?
                             prefix.getIpv4Prefix().getValue() : prefix.getIpv6Prefix().getValue();
-                    Long originId = ((OspfNodeCase) ((PrefixCase) route.getObjectType())
-                            .getAdvertisingNodeDescriptors().getCRouterIdentifier()).getOspfNode().getOspfRouterId();
+                    Long originId = getNodeId(((PrefixCase) route.getObjectType()).getAdvertisingNodeDescriptors().getCRouterIdentifier());
                     Long areaId = ((PrefixCase) route.getObjectType()).getAdvertisingNodeDescriptors().getAreaId().getValue();
                     Long metric = ((PrefixAttributesCase) route.getAttributes().getAugmentation(Attributes1.class)
                             .getLinkStateAttribute()).getPrefixAttributes().getPrefixMetric().getValue();
-                    if (prefixDesc.getOspfRouteType().equals(OspfRouteType.IntraArea)) {
+                    if (route.getProtocolId() == ProtocolId.IsisLevel1 ||
+                            (prefixDesc.getOspfRouteType() != null &&
+                                    prefixDesc.getOspfRouteType().equals(OspfRouteType.IntraArea))) {
                         LOG.debug("Add new intra first hop for [prefix={}, areaId={}, nodeId={}] to topology", prefixStr, areaId, originId);
                         topology.addIntraPrefix(prefixStr, areaId, originId);
-                    } else if (prefixDesc.getOspfRouteType().equals(OspfRouteType.InterArea)) {
+                    } else if (route.getProtocolId() == ProtocolId.IsisLevel2 ||
+                            (prefixDesc.getOspfRouteType() != null &&
+                                    prefixDesc.getOspfRouteType().equals(OspfRouteType.InterArea))) {
                         LOG.debug("Add new inter first hop [prefix={}, areaId={}, nodeId={}, metric={}] to topology", prefixStr, areaId, originId, metric);
                         topology.addInterPrefix(prefixStr, areaId, originId, metric);
                     } else {
@@ -260,11 +279,9 @@ public class AltoAutoMapsCostMapUpdater implements DataTreeChangeListener<Tables
                     // add new edge to graph
                     String linkId = String.valueOf(route.getRouteKey());
                     LinkCase link = (LinkCase) route.getObjectType();
-                    Long sourceId = ((OspfNodeCase) link.getLocalNodeDescriptors().getCRouterIdentifier())
-                            .getOspfNode().getOspfRouterId();
+                    Long sourceId = getNodeId(link.getLocalNodeDescriptors().getCRouterIdentifier());
                     Long sourceAreaId = link.getLocalNodeDescriptors().getAreaId().getValue();
-                    Long destId = ((OspfNodeCase) link.getRemoteNodeDescriptors().getCRouterIdentifier())
-                            .getOspfNode().getOspfRouterId();
+                    Long destId = getNodeId(link.getRemoteNodeDescriptors().getCRouterIdentifier());
                     Long destAreaId = link.getRemoteNodeDescriptors().getAreaId().getValue();
                     if (sourceAreaId.equals(destAreaId)) {
                         LOG.debug("Add new link [areaId={}, sourceId={}, destId={}] to topology", sourceAreaId, sourceId, destId);
