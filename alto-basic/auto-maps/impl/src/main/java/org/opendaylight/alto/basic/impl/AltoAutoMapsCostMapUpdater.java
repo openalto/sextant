@@ -50,7 +50,9 @@ import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.link
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.linkstate.routes.linkstate.routes.linkstate.route.Attributes1;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.CRouterIdentifier;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.IsisNodeCase;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.IsisPseudonodeCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.OspfNodeCase;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.linkstate.rev171207.node.identifier.c.router.identifier.OspfPseudonodeCase;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.BgpRib;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.RibId;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.bgp.rib.rev171207.bgp.rib.Rib;
@@ -229,8 +231,14 @@ public class AltoAutoMapsCostMapUpdater implements DataTreeChangeListener<Tables
         Long nodeId = null;
         if (cRouterIdentifier instanceof OspfNodeCase) {
             nodeId = ((OspfNodeCase) cRouterIdentifier).getOspfNode().getOspfRouterId();
+        } else if (cRouterIdentifier instanceof OspfPseudonodeCase) {
+            nodeId = ((OspfPseudonodeCase) cRouterIdentifier).getOspfPseudonode().getOspfRouterId();
         } else if (cRouterIdentifier instanceof IsisNodeCase) {
-            nodeId = new BigInteger(1, ((IsisNodeCase) cRouterIdentifier).getIsisNode().getIsoSystemId().getValue()).longValue();
+            nodeId = new BigInteger(1, ((IsisNodeCase) cRouterIdentifier)
+                    .getIsisNode().getIsoSystemId().getValue()).longValue();
+        } else if (cRouterIdentifier instanceof IsisPseudonodeCase) {
+            nodeId = new BigInteger(1, ((IsisPseudonodeCase) cRouterIdentifier)
+                    .getIsisPseudonode().getIsIsRouterIdentifier().getIsoSystemId().getValue()).longValue();
         } else {
             LOG.warn("Protocol not supported yet");
         }
