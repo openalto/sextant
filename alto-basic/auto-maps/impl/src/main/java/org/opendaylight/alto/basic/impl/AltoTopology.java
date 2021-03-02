@@ -109,6 +109,35 @@ public class AltoTopology {
         return multigraph.containsKey(areaId) && multigraph.get(areaId).containsVertex(nodeId);
     }
 
+    public void prepareDefaultIntraArea() {
+        Set<String> allPrefixes = multiFirstHops.keySet();
+        for (String prefix : allPrefixes) {
+            FirstHops origin = multiFirstHops.get(prefix);
+            if (origin.intraAreaId == null || origin.intraOriginId == null) {
+                Long metric = 0L;
+                Long defaultIntraArea = null;
+                Long defaultIntraOrigin = null;
+                for (Long interArea : origin.interOriginIds.keySet()) {
+                    if (defaultIntraArea == null) {
+                        defaultIntraArea = interArea;
+                    }
+                    for (Long interOrigin : origin.interOriginIds.get(interArea).keySet()) {
+                        Long currentMetric = origin.interOriginIds.get(interArea).get(interOrigin);
+                        if (defaultIntraOrigin == null) {
+                            defaultIntraOrigin = interOrigin;
+                            metric = currentMetric;
+                        }
+                        if (currentMetric < metric) {
+                            defaultIntraArea = interArea;
+                            defaultIntraOrigin = interOrigin;
+                        }
+                    }
+                }
+                addIntraPrefix(prefix, defaultIntraArea, defaultIntraOrigin);
+            }
+        }
+    }
+
     public int getDistance(Long areaId, Long sourceId, Long destId) {
         int d = 0;
         try {

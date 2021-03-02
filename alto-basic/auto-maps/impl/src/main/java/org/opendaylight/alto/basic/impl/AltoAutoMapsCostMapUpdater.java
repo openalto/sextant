@@ -216,6 +216,7 @@ public class AltoAutoMapsCostMapUpdater implements DataTreeChangeListener<Tables
                 Tables table = optional.get();
                 if (table.getRoutes() instanceof LinkstateRoutesCase) {
                     loadTopologyFromLinkstate(((LinkstateRoutesCase) table.getRoutes()).getLinkstateRoutes());
+                    topology.prepareDefaultIntraArea();
                 } else {
                     LOG.error("Unsupported route type");
                 }
